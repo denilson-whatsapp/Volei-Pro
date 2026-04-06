@@ -228,6 +228,36 @@ export async function dbFetchDraws(groupId: string) {
   return data || null;
 }
 
+// --- Scoreboard ---
+export async function dbSaveScoreboard(groupId: string, data: any) {
+  if (!isSupabaseConfigured) return;
+  const { error } = await supabase
+    .from('scoreboard')
+    .upsert({ 
+      group_id: groupId, 
+      score_a: data.scoreA,
+      score_b: data.scoreB,
+      sets_a: data.setsA,
+      sets_b: data.setsB,
+      is_swapped: data.isSwapped,
+      seconds: data.seconds,
+      is_active: data.isActive,
+      updated_at: new Date().toISOString() 
+    });
+  if (error) console.error('Supabase: Error saving scoreboard:', error);
+}
+
+export async function dbFetchScoreboard(groupId: string) {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await supabase
+    .from('scoreboard')
+    .select('*')
+    .eq('group_id', groupId)
+    .maybeSingle();
+  if (error) console.error('Supabase: Error fetching scoreboard:', error);
+  return data || null;
+}
+
 export async function testSupabaseConnection() {
   if (!isSupabaseConfigured) {
     return { success: false, message: 'Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.' };

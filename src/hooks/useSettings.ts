@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Settings } from '../types';
 import { io, Socket } from 'socket.io-client';
-import { dbSaveSettings, dbFetchSettings } from '../lib/supabase';
+import { dbSaveSettings, dbFetchSettings, isSupabaseConfigured } from '../lib/supabase';
 
 const DEFAULT_SETTINGS: Settings = {
   points_per_set: 25,

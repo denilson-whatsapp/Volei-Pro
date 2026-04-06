@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Player } from '../types';
 import { io, Socket } from 'socket.io-client';
-import { dbSavePlayers, dbFetchPlayers } from '../lib/supabase';
+import { dbSavePlayers, dbFetchPlayers, isSupabaseConfigured } from '../lib/supabase';
 import { generateId } from '../lib/utils';
 
 export function usePlayers(groupId: string | null) {

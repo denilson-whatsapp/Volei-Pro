@@ -1,52 +1,68 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, dbSaveScoreboard, dbFetchScoreboard } from '../lib/supabase';
 
-export function useSync(groupId: string | null, state: any, onSync: (state: any) => void) {
+export function useSync(groupId: string | null, state: any, onSync: (newState: any) => void) {
   const isRemoteUpdate = useRef(false);
-  const hasSynced = useRef(false);
+  const lastUpdate = useRef<string>(new Date().toISOString());
+  const onSyncRef = useRef(onSync);
 
   useEffect(() => {
-    if (!groupId) return;
+    onSyncRef.current = onSync;
+  }, [onSync]);
 
-    const fetchInitialState = async () => {
-      const { data, error } = await supabase
-        .from('groups')
-        .select('score_state')
-        .eq('id', groupId)
-        .single();
+  // Initial fetch
+  useEffect(() => {
+    if (!groupId || !isSupabaseConfigured) return;
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching initial state:', error);
-      } else if (data?.score_state) {
+    const fetchInitial = async () => {
+      const data = await dbFetchScoreboard(groupId);
+      if (data) {
         isRemoteUpdate.current = true;
-        onSync(data.score_state);
-        setTimeout(() => {
-          isRemoteUpdate.current = false;
-        }, 100);
+        onSyncRef.current({
+          scoreA: data.score_a,
+          scoreB: data.score_b,
+          setsA: data.sets_a,
+          setsB: data.sets_b,
+          isSwapped: data.is_swapped,
+          seconds: data.seconds,
+          isActive: data.is_active
+        });
+        setTimeout(() => { isRemoteUpdate.current = false; }, 100);
       }
-      hasSynced.current = true;
     };
 
-    fetchInitialState();
+    fetchInitial();
+  }, [groupId]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!groupId || !isSupabaseConfigured) return;
 
     const channel = supabase
-      .channel(`group-${groupId}`)
+      .channel(`scoreboard:${groupId}`)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'groups',
-          filter: `id=eq.${groupId}`,
+          table: 'scoreboard',
+          filter: `group_id=eq.${groupId}`
         },
         (payload) => {
-          if (payload.new.score_state) {
-            isRemoteUpdate.current = true;
-            onSync(payload.new.score_state);
-            setTimeout(() => {
-              isRemoteUpdate.current = false;
-            }, 100);
-          }
+          if (isRemoteUpdate.current) return;
+          
+          const data = payload.new;
+          isRemoteUpdate.current = true;
+          onSyncRef.current({
+            scoreA: data.score_a,
+            scoreB: data.score_b,
+            setsA: data.sets_a,
+            setsB: data.sets_b,
+            isSwapped: data.is_swapped,
+            seconds: data.seconds,
+            isActive: data.is_active
+          });
+          setTimeout(() => { isRemoteUpdate.current = false; }, 100);
         }
       )
       .subscribe();
@@ -56,20 +72,17 @@ export function useSync(groupId: string | null, state: any, onSync: (state: any)
     };
   }, [groupId]);
 
+  // Push updates to Supabase
   useEffect(() => {
-    if (!groupId || isRemoteUpdate.current || !hasSynced.current) return;
+    if (!groupId || !isSupabaseConfigured || isRemoteUpdate.current) return;
 
-    const updateState = async () => {
-      const { error } = await supabase
-        .from('groups')
-        .upsert({ id: groupId, score_state: state }, { onConflict: 'id' });
+    const now = new Date().getTime();
+    const last = new Date(lastUpdate.current).getTime();
+    
+    // Throttle updates to once every 500ms to avoid spamming Supabase
+    if (now - last < 500) return;
 
-      if (error) {
-        console.error('Error updating state:', error);
-      }
-    };
-
-    const timeoutId = setTimeout(updateState, 500);
-    return () => clearTimeout(timeoutId);
+    lastUpdate.current = new Date().toISOString();
+    dbSaveScoreboard(groupId, state);
   }, [state, groupId]);
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Match, Draw } from '../types';
 import { io, Socket } from 'socket.io-client';
-import { dbSaveMatch, dbSaveDraw, dbFetchMatches, dbFetchDraws, dbDeleteMatch, dbDeleteDraw } from '../lib/supabase';
+import { dbSaveMatch, dbSaveDraw, dbFetchMatches, dbFetchDraws, dbDeleteMatch, dbDeleteDraw, isSupabaseConfigured } from '../lib/supabase';
 
 export function useHistory(groupId: string | null) {
   const [matches, setMatches] = useState<Match[]>([]);
