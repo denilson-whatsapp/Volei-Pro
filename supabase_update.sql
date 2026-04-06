@@ -11,9 +11,11 @@ ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_a_players JSONB DEFAULT '[]';
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_b_players JSONB DEFAULT '[]';
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS winner_team TEXT;
 
--- Update scoreboard table with team players
+-- Update scoreboard table with team players and court positions
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_a_players JSONB DEFAULT '[]';
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_b_players JSONB DEFAULT '[]';
+ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_a_on_court JSONB DEFAULT '[]';
+ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_b_on_court JSONB DEFAULT '[]';
 
 -- Ensure Realtime is enabled for these tables
 -- We use a DO block to avoid errors if the table is already in the publication

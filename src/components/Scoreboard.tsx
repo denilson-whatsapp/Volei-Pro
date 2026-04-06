@@ -25,6 +25,11 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
   const [isSwapped, setIsSwapped] = useState(false);
   const [teamAPlayers, setTeamAPlayers] = useState<string[]>([]);
   const [teamBPlayers, setTeamBPlayers] = useState<string[]>([]);
+  const [teamAOnCourt, setTeamAOnCourt] = useState<(string | null)[]>(Array(6).fill(null));
+  const [teamBOnCourt, setTeamBOnCourt] = useState<(string | null)[]>(Array(6).fill(null));
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<'A' | 'B' | null>(null);
   const [history, setHistory] = useState<{ a: number; b: number }[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
@@ -80,7 +85,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
   };
 
   // Sync state with the group
-  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive, teamAPlayers, teamBPlayers }, (newState) => {
+  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive, teamAPlayers, teamBPlayers, teamAOnCourt, teamBOnCourt }, (newState) => {
     if (newState.scoreA !== undefined) setScoreA(newState.scoreA);
     if (newState.scoreB !== undefined) setScoreB(newState.scoreB);
     if (newState.setsA !== undefined) setSetsA(newState.setsA);
@@ -90,6 +95,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     if (newState.isActive !== undefined) setIsActive(newState.isActive);
     if (newState.teamAPlayers !== undefined) setTeamAPlayers(newState.teamAPlayers);
     if (newState.teamBPlayers !== undefined) setTeamBPlayers(newState.teamBPlayers);
+    if (newState.teamAOnCourt !== undefined) setTeamAOnCourt(newState.teamAOnCourt);
+    if (newState.teamBOnCourt !== undefined) setTeamBOnCourt(newState.teamBOnCourt);
   });
 
   const saveMatch = async () => {
@@ -142,6 +149,13 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
   };
 
   const addPoint = (team: 'A' | 'B') => {
+    if (selectedPlayerId || selectedPositionIndex !== null) {
+      setSelectedPlayerId(null);
+      setSelectedPositionIndex(null);
+      setSelectedTeam(null);
+      return;
+    }
+    
     if (!isActive) toggleTimer();
     setHistory([...history, { a: scoreA, b: scoreB }]);
     
@@ -226,103 +240,241 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
 
   const togglePlayerInTeam = (playerId: string, team: 'A' | 'B') => {
     if (team === 'A') {
+      const isRemoving = teamAPlayers.includes(playerId);
       setTeamAPlayers(prev => 
-        prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+        isRemoving ? prev.filter(id => id !== playerId) : [...prev, playerId]
       );
       setTeamBPlayers(prev => prev.filter(id => id !== playerId));
+      
+      if (isRemoving) {
+        setTeamAOnCourt(prev => prev.map(id => id === playerId ? null : id));
+      }
     } else {
+      const isRemoving = teamBPlayers.includes(playerId);
       setTeamBPlayers(prev => 
-        prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+        isRemoving ? prev.filter(id => id !== playerId) : [...prev, playerId]
       );
       setTeamAPlayers(prev => prev.filter(id => id !== playerId));
+      
+      if (isRemoving) {
+        setTeamBOnCourt(prev => prev.map(id => id === playerId ? null : id));
+      }
     }
   };
 
-  const TeamSide = ({ team, score, sets, color, name, playerIds }: { 
+  const handleCourtClick = (team: 'A' | 'B', index: number) => {
+    const onCourt = team === 'A' ? teamAOnCourt : teamBOnCourt;
+    
+    if (selectedPlayerId && selectedTeam === team) {
+      // Swap bench player with court position
+      const newOnCourt = [...onCourt];
+      // If the player was already on court elsewhere, remove them from there
+      const existingIdx = newOnCourt.indexOf(selectedPlayerId);
+      if (existingIdx !== -1) newOnCourt[existingIdx] = null;
+      
+      newOnCourt[index] = selectedPlayerId;
+      if (team === 'A') setTeamAOnCourt(newOnCourt);
+      else setTeamBOnCourt(newOnCourt);
+      
+      setSelectedPlayerId(null);
+      setSelectedPositionIndex(null);
+      setSelectedTeam(null);
+    } else if (selectedPositionIndex !== null && selectedTeam === team) {
+      // Swap two court positions
+      const newOnCourt = [...onCourt];
+      const temp = newOnCourt[index];
+      newOnCourt[index] = newOnCourt[selectedPositionIndex];
+      newOnCourt[selectedPositionIndex] = temp;
+      if (team === 'A') setTeamAOnCourt(newOnCourt);
+      else setTeamBOnCourt(newOnCourt);
+      
+      setSelectedPlayerId(null);
+      setSelectedPositionIndex(null);
+      setSelectedTeam(null);
+    } else {
+      // Select court position
+      setSelectedPositionIndex(index);
+      setSelectedPlayerId(null);
+      setSelectedTeam(team);
+    }
+  };
+
+  const handleBenchClick = (team: 'A' | 'B', playerId: string) => {
+    if (selectedPositionIndex !== null && selectedTeam === team) {
+      // Swap court position with bench player
+      const onCourt = team === 'A' ? teamAOnCourt : teamBOnCourt;
+      const newOnCourt = [...onCourt];
+      
+      // If the player was already on court elsewhere, remove them from there
+      const existingIdx = newOnCourt.indexOf(playerId);
+      if (existingIdx !== -1) newOnCourt[existingIdx] = null;
+
+      newOnCourt[selectedPositionIndex] = playerId;
+      if (team === 'A') setTeamAOnCourt(newOnCourt);
+      else setTeamBOnCourt(newOnCourt);
+      
+      setSelectedPlayerId(null);
+      setSelectedPositionIndex(null);
+      setSelectedTeam(null);
+    } else {
+      // Select bench player
+      setSelectedPlayerId(playerId);
+      setSelectedPositionIndex(null);
+      setSelectedTeam(team);
+    }
+  };
+
+  const CourtView = ({ team, onCourt, bench }: { team: 'A' | 'B', onCourt: (string | null)[], bench: string[] }) => {
+    // Volleyball positions:
+    // 4 3 2
+    // 5 6 1
+    const positions = [3, 2, 1, 4, 5, 0]; // Indices for positions 4, 3, 2, 5, 6, 1
+    
+    return (
+      <div className="flex flex-col gap-2 w-full max-w-[280px] mx-auto z-20">
+        {/* Bench / Waiting list at the top */}
+        <div className="flex flex-wrap justify-center gap-1 min-h-[32px] p-1 bg-black/20 rounded-lg border border-white/5">
+          {bench.length === 0 && <span className="text-[8px] text-white/20 uppercase font-bold self-center">Reserva Vazia</span>}
+          {bench.map(id => {
+            const p = players.find(player => player.id === id);
+            const isSelected = selectedPlayerId === id && selectedTeam === team;
+            return (
+              <button
+                key={id}
+                onClick={(e) => { e.stopPropagation(); handleBenchClick(team, id); }}
+                className={cn(
+                  "px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border",
+                  isSelected 
+                    ? "bg-orange-500 border-orange-400 text-white scale-110 shadow-lg z-10" 
+                    : "bg-slate-800/80 border-white/10 text-slate-300 hover:border-white/30"
+                )}
+              >
+                {p?.name.split(' ')[0]}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Court Grid */}
+        <div className="grid grid-cols-3 gap-1.5 aspect-[3/2] bg-black/10 rounded-xl p-2 border-2 border-white/10 relative overflow-hidden">
+          {/* Net line indicator */}
+          <div className="absolute top-0 left-0 w-full h-0.5 bg-white/20" />
+          
+          {positions.map((posIdx) => {
+            const playerId = onCourt[posIdx];
+            const p = players.find(player => player.id === playerId);
+            const isSelected = selectedPositionIndex === posIdx && selectedTeam === team;
+            
+            return (
+              <button
+                key={posIdx}
+                onClick={(e) => { e.stopPropagation(); handleCourtClick(team, posIdx); }}
+                className={cn(
+                  "relative flex flex-col items-center justify-center rounded-lg border-2 transition-all group",
+                  isSelected 
+                    ? "bg-orange-500/30 border-orange-500 scale-105 z-10 shadow-xl" 
+                    : "bg-slate-900/40 border-white/5 hover:border-white/20"
+                )}
+              >
+                <span className="absolute top-0.5 left-1 text-[7px] font-black text-white/20">
+                  {posIdx === 3 ? '4' : posIdx === 2 ? '3' : posIdx === 1 ? '2' : posIdx === 4 ? '5' : posIdx === 5 ? '6' : '1'}
+                </span>
+                
+                {p ? (
+                  <>
+                    <div className="w-6 h-6 rounded-full bg-slate-800 border border-white/10 overflow-hidden mb-0.5">
+                      {p.photo_url ? (
+                        <img src={p.photo_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white/40">
+                          {p.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[8px] font-black text-white truncate w-full px-0.5 text-center leading-tight">
+                      {p.name.split(' ')[0]}
+                    </span>
+                  </>
+                ) : (
+                  <div className="w-5 h-5 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
+                    <UserPlus size={8} className="text-white/20" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const TeamSide = ({ team, score, sets, color, name, playerIds, onCourt }: { 
     team: 'A' | 'B', 
     score: number, 
     sets: number, 
     color: string,
     name: string,
-    playerIds: string[]
-  }) => (
-    <motion.div 
-      className="relative flex-1 flex flex-col items-center justify-center cursor-pointer select-none overflow-hidden group"
-      whileTap={{ scale: 0.98 }}
-    >
-      {/* Background with color overlay */}
-      <div 
-        onClick={() => addPoint(team)}
-        className="absolute inset-0 opacity-20 transition-colors duration-500"
-        style={{ backgroundColor: color }}
-      />
-      
-      {/* Set indicators */}
-      <div className="absolute top-8 landscape:top-4 flex gap-2">
-        {Array.from({ length: Math.ceil(settings.max_sets / 2) + 1 }).map((_, i) => (
-          <div 
-            key={i}
-            className={cn(
-              "w-3 h-3 rounded-full border-2 transition-all duration-300",
-              i < sets ? "bg-white border-white scale-125" : "border-white/30"
-            )}
-          />
-        ))}
-      </div>
-
-      <div className="z-10 flex flex-col items-center">
-        <h2 className="text-2xl landscape:text-lg font-bold text-white/60 uppercase tracking-widest mb-1 z-10">
-          {name}
-        </h2>
-        
-        {/* Team Players List */}
-        <div 
-          onClick={(e) => { e.stopPropagation(); setShowEscalacao(true); setSelectingTeam(team); }}
-          className="flex -space-x-2 mb-4 landscape:mb-1 hover:scale-110 transition-transform"
-        >
-          {playerIds.length > 0 ? (
-            playerIds.slice(0, 4).map(id => {
-              const p = players.find(p => p.id === id);
-              return (
-                <div key={id} className="w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-800 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white">
-                  {p?.photo_url ? (
-                    <img src={p.photo_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    p?.name.charAt(0).toUpperCase() || '?'
-                  )}
-                </div>
-              );
-            })
-          ) : (
-            <div className="w-8 h-8 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center text-white/40">
-              <UserPlus size={14} />
-            </div>
-          )}
-          {playerIds.length > 4 && (
-            <div className="w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white">
-              +{playerIds.length - 4}
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <span 
-        onClick={() => addPoint(team)}
-        className={cn(
-          "text-[10rem] sm:text-[12rem] md:text-[18rem] landscape:text-[6rem] landscape:md:text-[10rem] font-black text-white leading-none z-10 drop-shadow-2xl transition-opacity"
-        )}
+    playerIds: string[],
+    onCourt: (string | null)[]
+  }) => {
+    const bench = playerIds.filter(id => !onCourt.includes(id));
+    
+    return (
+      <motion.div 
+        className="relative flex-1 flex flex-col items-center justify-center cursor-default select-none overflow-hidden group"
       >
-        {score}
-      </span>
+        {/* Background with color overlay */}
+        <div 
+          onClick={() => addPoint(team)}
+          className="absolute inset-0 opacity-20 transition-colors duration-500"
+          style={{ backgroundColor: color }}
+        />
+        
+        {/* Set indicators */}
+        <div className="absolute top-4 landscape:top-2 flex gap-1.5 z-20">
+          {Array.from({ length: settings.max_sets }).map((_, i) => (
+            <div 
+              key={i}
+              className={cn(
+                "w-2.5 h-2.5 rounded-full border-2 transition-all duration-300",
+                i < sets ? "bg-white border-white scale-110 shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "border-white/20"
+              )}
+            />
+          ))}
+        </div>
 
-      <div className="absolute bottom-10 opacity-0 group-hover:opacity-100 transition-opacity text-white/40 text-sm font-medium uppercase tracking-tighter">
-        Toque para pontuar
-      </div>
-    </motion.div>
-  );
+        <div className="z-10 flex flex-col items-center w-full px-4 mt-10 landscape:mt-6">
+          <h2 className="text-xl landscape:text-base font-black text-white uppercase tracking-tighter mb-2 drop-shadow-md flex items-center gap-2">
+            {name}
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowEscalacao(true); setSelectingTeam(team); }}
+              className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+            >
+              <Users size={14} />
+            </button>
+          </h2>
+          
+          <CourtView team={team} onCourt={onCourt} bench={bench} />
+        </div>
+        
+        <span 
+          onClick={() => addPoint(team)}
+          className={cn(
+            "text-[8rem] sm:text-[10rem] md:text-[14rem] landscape:text-[4rem] landscape:md:text-[7rem] font-black text-white leading-none z-10 drop-shadow-2xl transition-opacity mt-4"
+          )}
+        >
+          {score}
+        </span>
 
-  const teamAData = { team: 'A' as const, score: scoreA, sets: setsA, color: settings.team_a_color, name: settings.team_a_name, playerIds: teamAPlayers };
-  const teamBData = { team: 'B' as const, score: scoreB, sets: setsB, color: settings.team_b_color, name: settings.team_b_name, playerIds: teamBPlayers };
+        <div className="absolute bottom-6 landscape:bottom-2 opacity-0 group-hover:opacity-100 transition-opacity text-white/40 text-[10px] font-bold uppercase tracking-widest">
+          Toque para pontuar
+        </div>
+      </motion.div>
+    );
+  };
+
+  const teamAData = { team: 'A' as const, score: scoreA, sets: setsA, color: settings.team_a_color, name: settings.team_a_name, playerIds: teamAPlayers, onCourt: teamAOnCourt };
+  const teamBData = { team: 'B' as const, score: scoreB, sets: setsB, color: settings.team_b_color, name: settings.team_b_name, playerIds: teamBPlayers, onCourt: teamBOnCourt };
 
   return (
     <div className="relative h-full flex flex-col bg-slate-950 overflow-hidden">

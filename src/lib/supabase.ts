@@ -278,6 +278,8 @@ export async function dbSaveScoreboard(groupId: string, data: any) {
       is_active: data.isActive,
       team_a_players: data.teamAPlayers || [],
       team_b_players: data.teamBPlayers || [],
+      team_a_on_court: data.teamAOnCourt || [],
+      team_b_on_court: data.teamBOnCourt || [],
       updated_at: new Date().toISOString() 
     });
   if (error) console.error('Supabase: Error saving scoreboard:', error);
