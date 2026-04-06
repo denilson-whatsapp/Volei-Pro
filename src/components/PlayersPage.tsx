@@ -1,19 +1,39 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Player } from '../types';
-import { UserPlus, Trash2, UserCheck, UserMinus, Search } from 'lucide-react';
+import { UserPlus, Trash2, UserCheck, UserMinus, Search, Camera, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { dbUploadPlayerPhoto } from '../lib/supabase';
 
 interface PlayersPageProps {
   players: Player[];
   onAdd: (name: string) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onUpdatePhoto: (id: string, url: string) => void;
 }
 
-export const PlayersPage: React.FC<PlayersPageProps> = ({ players, onAdd, onToggle, onDelete }) => {
+export const PlayersPage: React.FC<PlayersPageProps> = ({ players, onAdd, onToggle, onDelete, onUpdatePhoto }) => {
   const [newName, setNewName] = useState('');
   const [search, setSearch] = useState('');
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+
+  const handlePhotoUpload = async (playerId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingId(playerId);
+    try {
+      const url = await dbUploadPlayerPhoto(playerId, file);
+      if (url) {
+        onUpdatePhoto(playerId, url);
+      }
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+    } finally {
+      setUploadingId(null);
+    }
+  };
 
   const filteredPlayers = players.filter(p => 
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -80,15 +100,41 @@ export const PlayersPage: React.FC<PlayersPageProps> = ({ players, onAdd, onTogg
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg",
-                    player.active ? "bg-orange-500/20 text-orange-500" : "bg-slate-800 text-slate-500"
-                  )}>
-                    {player.name.charAt(0).toUpperCase()}
+                  <div className="relative group/photo">
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center font-bold text-lg border-2 transition-all",
+                      player.active ? "bg-orange-500/10 border-orange-500/30 text-orange-500" : "bg-slate-800 border-slate-700 text-slate-500"
+                    )}>
+                      {player.photo_url ? (
+                        <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        player.name.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    
+                    <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover/photo:opacity-100 transition-opacity cursor-pointer rounded-2xl">
+                      {uploadingId === player.id ? (
+                        <Loader2 size={16} className="text-white animate-spin" />
+                      ) : (
+                        <Camera size={16} className="text-white" />
+                      )}
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => handlePhotoUpload(player.id, e)}
+                        disabled={uploadingId === player.id}
+                      />
+                    </label>
                   </div>
-                  <span className="font-semibold text-white truncate max-w-[120px]">
-                    {player.name}
-                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-bold text-white truncate max-w-[120px]">
+                      {player.name}
+                    </span>
+                    <span className="text-[10px] uppercase font-black tracking-tighter text-slate-500">
+                      {player.wins || 0}V • {player.games_played || 0}J
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-1">

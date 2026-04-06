@@ -1,27 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RotateCcw, Undo2, Play, Pause, RefreshCw, X, Save } from 'lucide-react';
-import { Match, Settings } from '../types';
+import { Match, Settings, Player } from '../types';
 import { useTimer } from '../hooks/useTimer';
 import { useSync } from '../hooks/useSync';
 import { formatTime } from '../lib/utils';
 import { cn } from '../lib/utils';
+import { dbSaveScoreboard, dbUpdatePlayerStats } from '../lib/supabase';
+import { Users, UserPlus, Trophy as TrophyIcon, ChevronDown } from 'lucide-react';
 
 interface ScoreboardProps {
   settings: Settings;
   groupId: string;
+  players: Player[];
   onSaveMatch: (match: Match) => void;
 }
 
-export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, onSaveMatch }) => {
+export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, players, onSaveMatch }) => {
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
   const [setsA, setSetsA] = useState(0);
   const [setsB, setSetsB] = useState(0);
   const [isSwapped, setIsSwapped] = useState(false);
+  const [teamAPlayers, setTeamAPlayers] = useState<string[]>([]);
+  const [teamBPlayers, setTeamBPlayers] = useState<string[]>([]);
   const [history, setHistory] = useState<{ a: number; b: number }[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [showEscalacao, setShowEscalacao] = useState(false);
+  const [selectingTeam, setSelectingTeam] = useState<'A' | 'B' | null>(null);
   
   const { seconds, isActive, toggleTimer, resetTimer, setSeconds, setIsActive } = useTimer();
 
@@ -72,7 +79,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, onSav
   };
 
   // Sync state with the group
-  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive }, (newState) => {
+  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive, teamAPlayers, teamBPlayers }, (newState) => {
     if (newState.scoreA !== undefined) setScoreA(newState.scoreA);
     if (newState.scoreB !== undefined) setScoreB(newState.scoreB);
     if (newState.setsA !== undefined) setSetsA(newState.setsA);
@@ -80,20 +87,43 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, onSav
     if (newState.isSwapped !== undefined) setIsSwapped(newState.isSwapped);
     if (newState.seconds !== undefined) setSeconds(newState.seconds);
     if (newState.isActive !== undefined) setIsActive(newState.isActive);
+    if (newState.teamAPlayers !== undefined) setTeamAPlayers(newState.teamAPlayers);
+    if (newState.teamBPlayers !== undefined) setTeamBPlayers(newState.teamBPlayers);
   });
 
   const saveMatch = async () => {
     if (setsA === 0 && setsB === 0 && scoreA === 0 && scoreB === 0) return;
     
     setIsSaving(true);
+    const winnerTeam = setsA > setsB ? 'A' : setsB > setsA ? 'B' : null;
+    
     const matchData: Match = {
       id: crypto.randomUUID(),
       team_a_score: scoreA,
       team_b_score: scoreB,
       sets_a: setsA,
       sets_b: setsB,
+      team_a_players: teamAPlayers,
+      team_b_players: teamBPlayers,
+      winner_team: winnerTeam,
       created_at: new Date().toISOString()
     };
+
+    // Update individual player stats
+    const allMatchPlayers = [...new Set([...teamAPlayers, ...teamBPlayers])];
+    for (const playerId of allMatchPlayers) {
+      const isTeamA = teamAPlayers.includes(playerId);
+      const isWinner = (isTeamA && winnerTeam === 'A') || (!isTeamA && winnerTeam === 'B');
+      const isLoser = (isTeamA && winnerTeam === 'B') || (!isTeamA && winnerTeam === 'A');
+      
+      await dbUpdatePlayerStats(playerId, {
+        wins: isWinner ? 1 : 0,
+        losses: isLoser ? 1 : 0,
+        games_played: 1,
+        sets_won: isTeamA ? setsA : setsB,
+        sets_lost: isTeamA ? setsB : setsA
+      });
+    }
 
     onSaveMatch(matchData);
 
@@ -181,23 +211,40 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, onSav
     setSetsA(0);
     setSetsB(0);
     setHistory([]);
+    setTeamAPlayers([]);
+    setTeamBPlayers([]);
     resetTimer();
   };
 
-  const TeamSide = ({ team, score, sets, color, name }: { 
+  const togglePlayerInTeam = (playerId: string, team: 'A' | 'B') => {
+    if (team === 'A') {
+      setTeamAPlayers(prev => 
+        prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+      );
+      setTeamBPlayers(prev => prev.filter(id => id !== playerId));
+    } else {
+      setTeamBPlayers(prev => 
+        prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+      );
+      setTeamAPlayers(prev => prev.filter(id => id !== playerId));
+    }
+  };
+
+  const TeamSide = ({ team, score, sets, color, name, playerIds }: { 
     team: 'A' | 'B', 
     score: number, 
     sets: number, 
     color: string,
-    name: string 
+    name: string,
+    playerIds: string[]
   }) => (
     <motion.div 
-      onClick={() => addPoint(team)}
       className="relative flex-1 flex flex-col items-center justify-center cursor-pointer select-none overflow-hidden group"
       whileTap={{ scale: 0.98 }}
     >
       {/* Background with color overlay */}
       <div 
+        onClick={() => addPoint(team)}
         className="absolute inset-0 opacity-20 transition-colors duration-500"
         style={{ backgroundColor: color }}
       />
@@ -215,11 +262,44 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, onSav
         ))}
       </div>
 
-      <h2 className="text-2xl landscape:text-lg font-bold text-white/60 uppercase tracking-widest mb-4 landscape:mb-2 z-10">
-        {name}
-      </h2>
+      <div className="z-10 flex flex-col items-center">
+        <h2 className="text-2xl landscape:text-lg font-bold text-white/60 uppercase tracking-widest mb-1 z-10">
+          {name}
+        </h2>
+        
+        {/* Team Players List */}
+        <div 
+          onClick={(e) => { e.stopPropagation(); setShowEscalacao(true); setSelectingTeam(team); }}
+          className="flex -space-x-2 mb-4 landscape:mb-1 hover:scale-110 transition-transform"
+        >
+          {playerIds.length > 0 ? (
+            playerIds.slice(0, 4).map(id => {
+              const p = players.find(p => p.id === id);
+              return (
+                <div key={id} className="w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-800 overflow-hidden flex items-center justify-center text-[10px] font-bold text-white">
+                  {p?.photo_url ? (
+                    <img src={p.photo_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    p?.name.charAt(0).toUpperCase() || '?'
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="w-8 h-8 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center text-white/40">
+              <UserPlus size={14} />
+            </div>
+          )}
+          {playerIds.length > 4 && (
+            <div className="w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white">
+              +{playerIds.length - 4}
+            </div>
+          )}
+        </div>
+      </div>
       
       <span 
+        onClick={() => addPoint(team)}
         className={cn(
           "text-[10rem] sm:text-[12rem] md:text-[18rem] landscape:text-[6rem] landscape:md:text-[10rem] font-black text-white leading-none z-10 drop-shadow-2xl transition-opacity"
         )}
@@ -233,8 +313,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, onSav
     </motion.div>
   );
 
-  const teamAData = { team: 'A' as const, score: scoreA, sets: setsA, color: settings.team_a_color, name: settings.team_a_name };
-  const teamBData = { team: 'B' as const, score: scoreB, sets: setsB, color: settings.team_b_color, name: settings.team_b_name };
+  const teamAData = { team: 'A' as const, score: scoreA, sets: setsA, color: settings.team_a_color, name: settings.team_a_name, playerIds: teamAPlayers };
+  const teamBData = { team: 'B' as const, score: scoreB, sets: setsB, color: settings.team_b_color, name: settings.team_b_name, playerIds: teamBPlayers };
 
   return (
     <div className="relative h-full flex flex-col bg-slate-950 overflow-hidden">
@@ -282,6 +362,111 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, onSav
           >
             <Save size={20} />
             Partida Salva!
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Escalacao Modal */}
+      <AnimatePresence>
+        {showEscalacao && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ y: 100 }}
+              animate={{ y: 0 }}
+              exit={{ y: 100 }}
+              className="bg-slate-900 w-full max-w-lg rounded-t-[2rem] sm:rounded-[2rem] border border-white/10 overflow-hidden flex flex-col max-h-[80vh]"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between bg-slate-900/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
+                    <Users size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Escalação</h3>
+                    <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Defina quem está em quadra</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowEscalacao(false)} className="p-2 hover:bg-white/5 rounded-full text-slate-400">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex border-b border-white/5">
+                <button 
+                  onClick={() => setSelectingTeam('A')}
+                  className={cn(
+                    "flex-1 py-4 font-bold transition-all border-b-2",
+                    selectingTeam === 'A' ? "text-orange-500 border-orange-500 bg-orange-500/5" : "text-slate-500 border-transparent"
+                  )}
+                >
+                  {settings.team_a_name} ({teamAPlayers.length})
+                </button>
+                <button 
+                  onClick={() => setSelectingTeam('B')}
+                  className={cn(
+                    "flex-1 py-4 font-bold transition-all border-b-2",
+                    selectingTeam === 'B' ? "text-orange-500 border-orange-500 bg-orange-500/5" : "text-slate-500 border-transparent"
+                  )}
+                >
+                  {settings.team_b_name} ({teamBPlayers.length})
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 gap-2 custom-scrollbar">
+                {players.map(player => {
+                  const isInA = teamAPlayers.includes(player.id);
+                  const isInB = teamBPlayers.includes(player.id);
+                  const isSelected = selectingTeam === 'A' ? isInA : isInB;
+                  const isInOther = selectingTeam === 'A' ? isInB : isInA;
+
+                  return (
+                    <button
+                      key={player.id}
+                      onClick={() => togglePlayerInTeam(player.id, selectingTeam!)}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-2xl border transition-all text-left",
+                        isSelected 
+                          ? "bg-orange-500 border-orange-400 shadow-lg shadow-orange-500/20" 
+                          : isInOther
+                          ? "bg-slate-800/30 border-white/5 opacity-30 grayscale cursor-not-allowed"
+                          : "bg-slate-800/50 border-white/5 hover:border-white/20"
+                      )}
+                      disabled={isInOther}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-slate-700 overflow-hidden flex-shrink-0 border border-white/10">
+                        {player.photo_url ? (
+                          <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center font-bold text-white/40">
+                            {player.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <span className={cn(
+                        "font-bold text-sm truncate",
+                        isSelected ? "text-white" : "text-slate-300"
+                      )}>
+                        {player.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="p-6 bg-slate-900/80 border-t border-white/5">
+                <button 
+                  onClick={() => setShowEscalacao(false)}
+                  className="w-full bg-white text-slate-950 font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all"
+                >
+                  CONFIRMAR ESCALAÇÃO
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -10,7 +10,8 @@ import {
   Menu,
   LogOut,
   Database,
-  CloudOff
+  CloudOff,
+  Zap
 } from 'lucide-react';
 import { View } from '../types';
 import { cn } from '../lib/utils';
@@ -49,8 +50,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onL
 
   const menuItems = [
     { id: 'scoreboard', label: 'Placar', icon: LayoutDashboard },
+    { id: 'ranking', label: 'Ranking', icon: Trophy },
     { id: 'players', label: 'Jogadores', icon: Users },
-    { id: 'shuffler', label: 'Sorteador', icon: Trophy },
+    { id: 'shuffler', label: 'Sorteador', icon: Zap },
     { id: 'history', label: 'Histórico', icon: History },
     { id: 'settings', label: 'Configurações', icon: SettingsIcon },
   ];

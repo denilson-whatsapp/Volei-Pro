@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Player } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -120,24 +121,54 @@ export async function dbSavePlayers(groupId: string, players: any[]) {
   if (!isSupabaseConfigured) return;
   
   try {
-    // Delete existing players for this group to avoid duplicates/orphans
-    await supabase.from('players').delete().eq('group_id', groupId);
-
-    if (players.length === 0) return;
-
-    const playersToInsert = players.map(p => ({
+    // Upsert players to keep stats
+    const playersToUpsert = players.map(p => ({
       id: p.id,
       group_id: groupId,
       name: p.name,
-      active: p.active
+      active: p.active,
+      photo_url: p.photo_url || null,
+      wins: p.wins || 0,
+      losses: p.losses || 0,
+      games_played: p.games_played || 0,
+      sets_won: p.sets_won || 0,
+      sets_lost: p.sets_lost || 0
     }));
 
-    const { error } = await supabase.from('players').insert(playersToInsert);
+    const { error } = await supabase.from('players').upsert(playersToUpsert, { onConflict: 'id' });
     if (error) throw error;
-    console.log('Supabase: Players synced successfully');
   } catch (e) {
     console.error('Supabase: Critical error saving players:', e);
   }
+}
+
+export async function dbUpdatePlayerStats(playerId: string, stats: Partial<Player>) {
+  if (!isSupabaseConfigured) return;
+  const { error } = await supabase
+    .from('players')
+    .update(stats)
+    .eq('id', playerId);
+  if (error) console.error('Supabase: Error updating player stats:', error);
+}
+
+export async function dbUploadPlayerPhoto(playerId: string, file: File) {
+  if (!isSupabaseConfigured) return null;
+  
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${playerId}-${Math.random()}.${fileExt}`;
+  const filePath = `player-photos/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file);
+
+  if (uploadError) {
+    console.error('Supabase: Error uploading photo:', uploadError);
+    return null;
+  }
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+  return data.publicUrl;
 }
 
 export async function dbFetchPlayers(groupId: string) {
@@ -169,6 +200,9 @@ export async function dbSaveMatch(groupId: string, match: any) {
       team_b_score: match.team_b_score,
       sets_a: match.sets_a,
       sets_b: match.sets_b,
+      team_a_players: match.team_a_players || [],
+      team_b_players: match.team_b_players || [],
+      winner_team: match.winner_team || null,
       created_at: match.created_at
     });
   if (error) console.error('Supabase: Error saving match:', error);
@@ -242,6 +276,8 @@ export async function dbSaveScoreboard(groupId: string, data: any) {
       is_swapped: data.isSwapped,
       seconds: data.seconds,
       is_active: data.isActive,
+      team_a_players: data.teamAPlayers || [],
+      team_b_players: data.teamBPlayers || [],
       updated_at: new Date().toISOString() 
     });
   if (error) console.error('Supabase: Error saving scoreboard:', error);

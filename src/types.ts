@@ -3,6 +3,12 @@ export interface Player {
   name: string;
   active: boolean;
   is_temporary?: boolean;
+  photo_url?: string;
+  wins?: number;
+  losses?: number;
+  games_played?: number;
+  sets_won?: number;
+  sets_lost?: number;
 }
 
 export interface Match {
@@ -11,6 +17,9 @@ export interface Match {
   team_b_score: number;
   sets_a: number;
   sets_b: number;
+  team_a_players?: string[]; // Array of player IDs
+  team_b_players?: string[]; // Array of player IDs
+  winner_team?: 'A' | 'B';
   created_at: string;
 }
 
@@ -32,4 +41,4 @@ export interface Draw {
   created_at: string;
 }
 
-export type View = 'scoreboard' | 'players' | 'shuffler' | 'history' | 'settings';
+export type View = 'scoreboard' | 'players' | 'shuffler' | 'history' | 'ranking' | 'settings';

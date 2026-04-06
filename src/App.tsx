@@ -5,6 +5,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { PlayersPage } from './components/PlayersPage';
 import { ShufflerPage } from './components/ShufflerPage';
 import { HistoryPage } from './components/HistoryPage';
+import { Ranking } from './components/Ranking';
 import { Login } from './components/Login';
 import { useSettings } from './hooks/useSettings';
 import { usePlayers } from './hooks/usePlayers';
@@ -20,7 +21,7 @@ export default function App() {
   const [supabaseStatus, setSupabaseStatus] = useState<string | null>(null);
 
   const { settings, updateSettings, loading: settingsLoading, refresh: refreshSettings } = useSettings(groupId);
-  const { players, addPlayer, togglePlayerActive, deletePlayer, loading: playersLoading, refresh: refreshPlayers } = usePlayers(groupId);
+  const { players, addPlayer, togglePlayerActive, deletePlayer, updatePlayerPhoto, loading: playersLoading, refresh: refreshPlayers } = usePlayers(groupId);
   const { matches, draws, addMatch, addDraw, deleteMatch, deleteDraw, loading: historyLoading, refresh: refreshHistory } = useHistory(groupId);
 
   const handleRefreshAll = async () => {
@@ -107,15 +108,17 @@ export default function App() {
   const renderView = () => {
     switch (currentView) {
       case 'scoreboard':
-        return <Scoreboard settings={settings} groupId={groupId} onSaveMatch={addMatch} />;
+        return <Scoreboard settings={settings} groupId={groupId} players={players} onSaveMatch={addMatch} />;
       case 'settings':
         return <SettingsPage settings={settings} onUpdate={updateSettings} onRefresh={handleRefreshAll} />;
       case 'players':
-        return <PlayersPage players={players} onAdd={addPlayer} onToggle={togglePlayerActive} onDelete={deletePlayer} />;
+        return <PlayersPage players={players} onAdd={addPlayer} onToggle={togglePlayerActive} onDelete={deletePlayer} onUpdatePhoto={updatePlayerPhoto} />;
       case 'shuffler':
-        return <ShufflerPage players={players} groupId={groupId} onSaveDraw={addDraw} />;
+        return <ShufflerPage players={players} groupId={groupId} onSaveDraw={addDraw} onViewChange={setCurrentView} />;
       case 'history':
         return <HistoryPage matches={matches} draws={draws} onDeleteMatch={deleteMatch} onDeleteDraw={deleteDraw} />;
+      case 'ranking':
+        return <Ranking players={players} matches={matches} />;
       default:
         return <Scoreboard settings={settings} groupId={groupId} onSaveMatch={addMatch} />;
     }

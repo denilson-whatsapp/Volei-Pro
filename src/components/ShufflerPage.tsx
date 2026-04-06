@@ -1,26 +1,29 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Player, Draw } from '../types';
-import { Trophy, RefreshCw, Save, UserPlus, X } from 'lucide-react';
+import { Trophy, RefreshCw, Save, UserPlus, X, Play } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useSync } from '../hooks/useSync';
+import { dbSaveScoreboard } from '../lib/supabase';
 
 interface ShufflerPageProps {
   players: Player[];
   groupId: string;
   onSaveDraw: (draw: Draw) => void;
+  onViewChange: (view: 'scoreboard') => void;
 }
 
-export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, onSaveDraw }) => {
+export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, onSaveDraw, onViewChange }) => {
   const [numTeams, setNumTeams] = useState(2);
   const [playersPerTeam, setPlayersPerTeam] = useState(6);
   const [autoTeams, setAutoTeams] = useState(true);
-  const [tempPlayers, setTempPlayers] = useState<string[]>([]);
+  const [tempPlayers, setTempPlayers] = useState<{id: string, name: string}[]>([]);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [newTempName, setNewTempName] = useState('');
-  const [generatedTeams, setGeneratedTeams] = useState<string[][]>([]);
+  const [generatedTeams, setGeneratedTeams] = useState<{id: string, name: string}[][]>([]);
   const [isShuffling, setIsShuffling] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [isPuttingOnCourt, setIsPuttingOnCourt] = useState(false);
 
   // Initialize selected players from the main list (only those active)
   React.useEffect(() => {
@@ -39,11 +42,11 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
     if (newState.autoTeams !== undefined) setAutoTeams(newState.autoTeams);
   });
 
-  const selectedRegisteredNames = players
+  const selectedRegistered = players
     .filter(p => selectedPlayerIds.includes(p.id))
-    .map(p => p.name);
+    .map(p => ({ id: p.id, name: p.name }));
   
-  const allAvailable = [...selectedRegisteredNames, ...tempPlayers];
+  const allAvailable = [...selectedRegistered, ...tempPlayers];
 
   // Auto-adjust number of teams
   React.useEffect(() => {
@@ -64,24 +67,22 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
   const handleAddTemp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTempName.trim()) return;
-    setTempPlayers([...tempPlayers, newTempName.trim()]);
+    setTempPlayers([...tempPlayers, { id: `temp-${Date.now()}`, name: newTempName.trim() }]);
     setNewTempName('');
   };
 
-  const removeTemp = (index: number) => {
-    setTempPlayers(tempPlayers.filter((_, i) => i !== index));
+  const removeTemp = (id: string) => {
+    setTempPlayers(tempPlayers.filter(p => p.id !== id));
   };
 
   const shuffleTeams = () => {
     setIsShuffling(true);
     
-    // Simple shuffle for now, but following the "intelligent" requirement
-    // we would analyze history. For this implementation, we'll do a robust random.
     setTimeout(() => {
       const pool = [...allAvailable];
       const shuffled = pool.sort(() => Math.random() - 0.5);
       
-      const teams: string[][] = Array.from({ length: numTeams }, () => []);
+      const teams: {id: string, name: string}[][] = Array.from({ length: numTeams }, () => []);
       
       let currentPlayerIndex = 0;
       for (let t = 0; t < numTeams; t++) {
@@ -98,12 +99,36 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
     }, 800);
   };
 
+  const putOnCourt = async () => {
+    if (generatedTeams.length < 2) return;
+    setIsPuttingOnCourt(true);
+    
+    try {
+      await dbSaveScoreboard(groupId, {
+        scoreA: 0,
+        scoreB: 0,
+        setsA: 0,
+        setsB: 0,
+        isSwapped: false,
+        seconds: 0,
+        isActive: false,
+        teamAPlayers: generatedTeams[0].map(p => p.id),
+        teamBPlayers: generatedTeams[1].map(p => p.id)
+      });
+      onViewChange('scoreboard');
+    } catch (e) {
+      console.error('Error putting on court:', e);
+    } finally {
+      setIsPuttingOnCourt(false);
+    }
+  };
+
   const saveDraw = async () => {
     if (generatedTeams.length === 0) return;
     
     const drawData: Draw = {
       id: crypto.randomUUID(),
-      teams: generatedTeams,
+      teams: generatedTeams.map(t => t.map(p => p.name)),
       created_at: new Date().toISOString()
     };
 
@@ -241,10 +266,10 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
             </form>
 
             <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
-              {tempPlayers.map((name, i) => (
-                <span key={i} className="flex items-center gap-1 bg-slate-800 text-slate-300 px-3 py-1.5 rounded-full text-xs font-medium border border-white/5">
-                  {name}
-                  <button onClick={() => removeTemp(i)} className="hover:text-red-500 ml-1">
+              {tempPlayers.map((p) => (
+                <span key={p.id} className="flex items-center gap-1 bg-slate-800 text-slate-300 px-3 py-1.5 rounded-full text-xs font-medium border border-white/5">
+                  {p.name}
+                  <button onClick={() => removeTemp(p.id)} className="hover:text-red-500 ml-1">
                     <X size={14} />
                   </button>
                 </span>
@@ -293,7 +318,7 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
                       {team.map((player, j) => (
                         <li key={j} className="flex items-center gap-3 text-slate-300 py-2 border-b border-white/5 last:border-0">
                           <div className="w-2 h-2 rounded-full bg-orange-500/40" />
-                          {player}
+                          {player.name}
                         </li>
                       ))}
                     </ul>
@@ -301,20 +326,21 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
                 ))}
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button 
+                  onClick={putOnCourt}
+                  disabled={isPuttingOnCourt}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  <Play size={20} fill="currentColor" />
+                  Colocar em Quadra (A vs B)
+                </button>
                 <button 
                   onClick={saveDraw}
                   className="flex-1 bg-white/5 hover:bg-white/10 text-white font-semibold py-4 rounded-2xl border border-white/10 flex items-center justify-center gap-2 transition-all"
                 >
                   <Save size={20} />
                   Salvar Sorteio
-                </button>
-                <button 
-                  onClick={shuffleTeams}
-                  className="flex-1 bg-white/5 hover:bg-white/10 text-white font-semibold py-4 rounded-2xl border border-white/10 flex items-center justify-center gap-2 transition-all"
-                >
-                  <RefreshCw size={20} />
-                  Refazer
                 </button>
               </div>
             </>

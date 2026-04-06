@@ -25,7 +25,9 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
           setsB: data.sets_b,
           isSwapped: data.is_swapped,
           seconds: data.seconds,
-          isActive: data.is_active
+          isActive: data.is_active,
+          teamAPlayers: data.team_a_players || [],
+          teamBPlayers: data.team_b_players || []
         });
         setTimeout(() => { isRemoteUpdate.current = false; }, 100);
       }
@@ -60,7 +62,9 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
             setsB: data.sets_b,
             isSwapped: data.is_swapped,
             seconds: data.seconds,
-            isActive: data.is_active
+            isActive: data.is_active,
+            teamAPlayers: data.team_a_players || [],
+            teamBPlayers: data.team_b_players || []
           });
           setTimeout(() => { isRemoteUpdate.current = false; }, 100);
         }

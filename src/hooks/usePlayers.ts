@@ -141,5 +141,18 @@ export function usePlayers(groupId: string | null) {
     }
   };
 
-  return { players, addPlayer, togglePlayerActive, deletePlayer, loading, refresh: fetchPlayers };
+  const updatePlayerPhoto = async (id: string, url: string) => {
+    const updated = players.map(p => p.id === id ? { ...p, photo_url: url } : p);
+    setPlayers(updated);
+    if (groupId) {
+      try {
+        localStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
+      } catch (e) {
+        console.error('usePlayers: Error saving to localStorage:', e);
+      }
+      dbSavePlayers(groupId, updated);
+    }
+  };
+
+  return { players, addPlayer, togglePlayerActive, deletePlayer, updatePlayerPhoto, loading, refresh: fetchPlayers };
 }
