@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured, dbSaveScoreboard, dbFetchScoreboard } from '../lib/supabase';
+import { SyncManager } from '../lib/syncManager';
 
 export function useSync(groupId: string | null, state: any, onSync: (newState: any) => void) {
   const isRemoteUpdate = useRef(false);
@@ -87,6 +88,7 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
     if (now - last < 500) return;
 
     lastUpdate.current = new Date().toISOString();
+    SyncManager.addToQueue({ type: 'scoreboard', groupId, data: state });
     dbSaveScoreboard(groupId, state);
   }, [state, groupId]);
 }

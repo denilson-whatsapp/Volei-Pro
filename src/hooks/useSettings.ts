@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Settings } from '../types';
 import { io, Socket } from 'socket.io-client';
 import { dbSaveSettings, dbFetchSettings, isSupabaseConfigured } from '../lib/supabase';
+import { SyncManager } from '../lib/syncManager';
 
 const DEFAULT_SETTINGS: Settings = {
   points_per_set: 25,
@@ -118,6 +119,7 @@ export function useSettings(groupId: string | null) {
         console.error('useSettings: Error saving to localStorage:', e);
       }
       // Save to Supabase (Background)
+      SyncManager.addToQueue({ type: 'settings', groupId, data: updated });
       dbSaveSettings(groupId, updated);
     }
   };

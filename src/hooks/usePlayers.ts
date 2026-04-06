@@ -3,6 +3,7 @@ import { Player } from '../types';
 import { io, Socket } from 'socket.io-client';
 import { dbSavePlayers, dbFetchPlayers, isSupabaseConfigured } from '../lib/supabase';
 import { generateId } from '../lib/utils';
+import { SyncManager } from '../lib/syncManager';
 
 export function usePlayers(groupId: string | null) {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -111,6 +112,7 @@ export function usePlayers(groupId: string | null) {
       } catch (e) {
         console.error('usePlayers: Error saving to localStorage:', e);
       }
+      SyncManager.addToQueue({ type: 'players', groupId, data: updated });
       dbSavePlayers(groupId, updated);
     }
   };
@@ -124,6 +126,7 @@ export function usePlayers(groupId: string | null) {
       } catch (e) {
         console.error('usePlayers: Error saving to localStorage:', e);
       }
+      SyncManager.addToQueue({ type: 'players', groupId, data: updated });
       dbSavePlayers(groupId, updated);
     }
   };
@@ -137,6 +140,7 @@ export function usePlayers(groupId: string | null) {
       } catch (e) {
         console.error('usePlayers: Error saving to localStorage:', e);
       }
+      SyncManager.addToQueue({ type: 'players', groupId, data: updated });
       dbSavePlayers(groupId, updated);
     }
   };
@@ -150,6 +154,7 @@ export function usePlayers(groupId: string | null) {
       } catch (e) {
         console.error('usePlayers: Error saving to localStorage:', e);
       }
+      SyncManager.addToQueue({ type: 'players', groupId, data: updated });
       dbSavePlayers(groupId, updated);
     }
   };

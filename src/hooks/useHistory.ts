@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Match, Draw } from '../types';
 import { io, Socket } from 'socket.io-client';
 import { dbSaveMatch, dbSaveDraw, dbFetchMatches, dbFetchDraws, dbDeleteMatch, dbDeleteDraw, isSupabaseConfigured } from '../lib/supabase';
+import { SyncManager } from '../lib/syncManager';
 
 export function useHistory(groupId: string | null) {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -130,6 +131,7 @@ export function useHistory(groupId: string | null) {
       } catch (e) {
         console.error('useHistory: Error saving matches to localStorage:', e);
       }
+      SyncManager.addToQueue({ type: 'match', groupId, data: match });
       dbSaveMatch(groupId, match);
     }
   };
@@ -143,6 +145,7 @@ export function useHistory(groupId: string | null) {
       } catch (e) {
         console.error('useHistory: Error saving matches to localStorage:', e);
       }
+      SyncManager.addToQueue({ type: 'delete_match', groupId, data: id });
       dbDeleteMatch(id);
     }
   };
@@ -156,6 +159,7 @@ export function useHistory(groupId: string | null) {
       } catch (e) {
         console.error('useHistory: Error saving draws to localStorage:', e);
       }
+      SyncManager.addToQueue({ type: 'draw', groupId, data: draw });
       dbSaveDraw(groupId, draw);
     }
   };
@@ -169,6 +173,7 @@ export function useHistory(groupId: string | null) {
       } catch (e) {
         console.error('useHistory: Error saving draws to localStorage:', e);
       }
+      SyncManager.addToQueue({ type: 'delete_draw', groupId, data: id });
       dbDeleteDraw(id);
     }
   };

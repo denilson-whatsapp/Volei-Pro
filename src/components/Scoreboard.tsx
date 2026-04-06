@@ -7,6 +7,7 @@ import { useSync } from '../hooks/useSync';
 import { formatTime } from '../lib/utils';
 import { cn } from '../lib/utils';
 import { dbSaveScoreboard, dbUpdatePlayerStats } from '../lib/supabase';
+import { SyncManager } from '../lib/syncManager';
 import { Users, UserPlus, Trophy as TrophyIcon, ChevronDown } from 'lucide-react';
 
 interface ScoreboardProps {
@@ -116,13 +117,20 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
       const isWinner = (isTeamA && winnerTeam === 'A') || (!isTeamA && winnerTeam === 'B');
       const isLoser = (isTeamA && winnerTeam === 'B') || (!isTeamA && winnerTeam === 'A');
       
-      await dbUpdatePlayerStats(playerId, {
+      const stats = {
         wins: isWinner ? 1 : 0,
         losses: isLoser ? 1 : 0,
         games_played: 1,
         sets_won: isTeamA ? setsA : setsB,
         sets_lost: isTeamA ? setsB : setsA
+      };
+      
+      SyncManager.addToQueue({ 
+        type: 'player_stats', 
+        groupId, 
+        data: { playerId, stats } 
       });
+      dbUpdatePlayerStats(playerId, stats);
     }
 
     onSaveMatch(matchData);

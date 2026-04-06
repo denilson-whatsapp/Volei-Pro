@@ -16,11 +16,37 @@ ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_a_players JSONB DEFAULT '[]
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_b_players JSONB DEFAULT '[]';
 
 -- Ensure Realtime is enabled for these tables
--- Note: You might need to run these separately if they are already in a publication
-ALTER PUBLICATION supabase_realtime ADD TABLE players;
-ALTER PUBLICATION supabase_realtime ADD TABLE matches;
-ALTER PUBLICATION supabase_realtime ADD TABLE scoreboard;
-ALTER PUBLICATION supabase_realtime ADD TABLE settings;
+-- We use a DO block to avoid errors if the table is already in the publication
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'players'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE players;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'matches'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE matches;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'scoreboard'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE scoreboard;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'settings'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE settings;
+    END IF;
+END $$;
 
 -- Create storage bucket for avatars if it doesn't exist
 -- This usually needs to be done via the Supabase UI or a specific API call,
