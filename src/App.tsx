@@ -114,7 +114,7 @@ export default function App() {
       case 'players':
         return <PlayersPage players={players} onAdd={addPlayer} onToggle={togglePlayerActive} onDelete={deletePlayer} onUpdatePhoto={updatePlayerPhoto} />;
       case 'shuffler':
-        return <ShufflerPage players={players} groupId={groupId} onSaveDraw={addDraw} onViewChange={setCurrentView} />;
+        return <ShufflerPage players={players} groupId={groupId} onSaveDraw={addDraw} onViewChange={setCurrentView} draws={draws} />;
       case 'history':
         return <HistoryPage matches={matches} draws={draws} onDeleteMatch={deleteMatch} onDeleteDraw={deleteDraw} />;
       case 'ranking':

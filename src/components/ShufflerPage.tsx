@@ -11,9 +11,10 @@ interface ShufflerPageProps {
   groupId: string;
   onSaveDraw: (draw: Draw) => void;
   onViewChange: (view: 'scoreboard') => void;
+  draws: Draw[];
 }
 
-export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, onSaveDraw, onViewChange }) => {
+export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, onSaveDraw, onViewChange, draws }) => {
   const [numTeams, setNumTeams] = useState(2);
   const [playersPerTeam, setPlayersPerTeam] = useState(6);
   const [autoTeams, setAutoTeams] = useState(true);
@@ -80,21 +81,59 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
     
     setTimeout(() => {
       const pool = [...allAvailable];
-      const shuffled = pool.sort(() => Math.random() - 0.5);
       
-      const teams: {id: string, name: string}[][] = Array.from({ length: numTeams }, () => []);
-      
-      let currentPlayerIndex = 0;
-      for (let t = 0; t < numTeams; t++) {
-        for (let p = 0; p < playersPerTeam; p++) {
-          if (currentPlayerIndex < shuffled.length) {
-            teams[t].push(shuffled[currentPlayerIndex]);
-            currentPlayerIndex++;
+      // Smart Shuffle Logic: Try multiple shuffles and pick the one with least repeated pairings
+      let bestShuffle: {id: string, name: string}[][] = [];
+      let minScore = Infinity;
+
+      // Build a map of how many times each pair has been together
+      const pairingHistory: Record<string, number> = {};
+      draws.forEach(draw => {
+        draw.teams.forEach(team => {
+          for (let i = 0; i < team.length; i++) {
+            for (let j = i + 1; j < team.length; j++) {
+              const pair = [team[i], team[j]].sort().join('|');
+              pairingHistory[pair] = (pairingHistory[pair] || 0) + 1;
+            }
+          }
+        });
+      });
+
+      // Try 50 different shuffles
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const shuffled = [...pool].sort(() => Math.random() - 0.5);
+        const currentTeams: {id: string, name: string}[][] = Array.from({ length: numTeams }, () => []);
+        
+        let currentPlayerIndex = 0;
+        for (let t = 0; t < numTeams; t++) {
+          for (let p = 0; p < playersPerTeam; p++) {
+            if (currentPlayerIndex < shuffled.length) {
+              currentTeams[t].push(shuffled[currentPlayerIndex]);
+              currentPlayerIndex++;
+            }
           }
         }
+
+        // Calculate score for this shuffle
+        let currentScore = 0;
+        currentTeams.forEach(team => {
+          for (let i = 0; i < team.length; i++) {
+            for (let j = i + 1; j < team.length; j++) {
+              const pair = [team[i].name, team[j].name].sort().join('|');
+              currentScore += (pairingHistory[pair] || 0) * 10; // Weight history heavily
+            }
+          }
+        });
+
+        if (currentScore < minScore) {
+          minScore = currentScore;
+          bestShuffle = currentTeams;
+        }
+        
+        if (minScore === 0) break; // Perfect shuffle found
       }
 
-      setGeneratedTeams(teams);
+      setGeneratedTeams(bestShuffle);
       setIsShuffling(false);
     }, 800);
   };
@@ -104,6 +143,10 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
     setIsPuttingOnCourt(true);
     
     try {
+      const teamAPlayers = generatedTeams[0].map(p => p.id);
+      const teamBPlayers = generatedTeams[1].map(p => p.id);
+      const waitingTeams = generatedTeams.slice(2).map(t => t.map(p => p.id));
+
       await dbSaveScoreboard(groupId, {
         scoreA: 0,
         scoreB: 0,
@@ -112,8 +155,11 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
         isSwapped: false,
         seconds: 0,
         isActive: false,
-        teamAPlayers: generatedTeams[0].map(p => p.id),
-        teamBPlayers: generatedTeams[1].map(p => p.id)
+        teamAPlayers,
+        teamBPlayers,
+        teamAOnCourt: teamAPlayers.slice(0, 6),
+        teamBOnCourt: teamBPlayers.slice(0, 6),
+        waitingTeams
       });
       onViewChange('scoreboard');
     } catch (e) {

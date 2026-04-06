@@ -27,6 +27,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
   const [teamBPlayers, setTeamBPlayers] = useState<string[]>([]);
   const [teamAOnCourt, setTeamAOnCourt] = useState<(string | null)[]>(Array(6).fill(null));
   const [teamBOnCourt, setTeamBOnCourt] = useState<(string | null)[]>(Array(6).fill(null));
+  const [waitingTeams, setWaitingTeams] = useState<string[][]>([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<'A' | 'B' | null>(null);
@@ -85,7 +86,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
   };
 
   // Sync state with the group
-  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive, teamAPlayers, teamBPlayers, teamAOnCourt, teamBOnCourt }, (newState) => {
+  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive, teamAPlayers, teamBPlayers, teamAOnCourt, teamBOnCourt, waitingTeams }, (newState) => {
     if (newState.scoreA !== undefined) setScoreA(newState.scoreA);
     if (newState.scoreB !== undefined) setScoreB(newState.scoreB);
     if (newState.setsA !== undefined) setSetsA(newState.setsA);
@@ -97,6 +98,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     if (newState.teamBPlayers !== undefined) setTeamBPlayers(newState.teamBPlayers);
     if (newState.teamAOnCourt !== undefined) setTeamAOnCourt(newState.teamAOnCourt);
     if (newState.teamBOnCourt !== undefined) setTeamBOnCourt(newState.teamBOnCourt);
+    if (newState.waitingTeams !== undefined) setWaitingTeams(newState.waitingTeams);
   });
 
   const saveMatch = async () => {
@@ -310,6 +312,22 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
       if (existingIdx !== -1) newOnCourt[existingIdx] = null;
 
       newOnCourt[selectedPositionIndex] = playerId;
+      
+      // If the player is from a waiting team, add them to the current team and remove from waiting
+      const isWaiting = waitingTeams.some(t => t.includes(playerId));
+      if (isWaiting) {
+        const newWaitingTeams = waitingTeams.map(t => t.filter(id => id !== playerId));
+        setWaitingTeams(newWaitingTeams);
+        
+        if (team === 'A') {
+          if (!teamAPlayers.includes(playerId)) setTeamAPlayers(prev => [...prev, playerId]);
+          setTeamBPlayers(prev => prev.filter(id => id !== playerId));
+        } else {
+          if (!teamBPlayers.includes(playerId)) setTeamBPlayers(prev => [...prev, playerId]);
+          setTeamAPlayers(prev => prev.filter(id => id !== playerId));
+        }
+      }
+
       if (team === 'A') setTeamAOnCourt(newOnCourt);
       else setTeamBOnCourt(newOnCourt);
       
@@ -417,7 +435,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     playerIds: string[],
     onCourt: (string | null)[]
   }) => {
-    const bench = playerIds.filter(id => !onCourt.includes(id));
+    const allWaitingPlayers = waitingTeams.flat();
+    const bench = [...playerIds.filter(id => !onCourt.includes(id)), ...allWaitingPlayers];
     
     return (
       <motion.div 
@@ -473,6 +492,64 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     );
   };
 
+  const WaitingTeams = () => {
+    if (waitingTeams.length === 0) return null;
+
+    return (
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2">
+        <div className="flex items-center gap-2 text-white/40 text-[10px] font-bold uppercase tracking-widest">
+          <RefreshCw size={12} />
+          Próximos Times
+        </div>
+        <div className="flex gap-4">
+          {waitingTeams.map((team, idx) => (
+            <div key={idx} className="bg-slate-900/80 backdrop-blur-sm border border-white/10 rounded-2xl p-3 flex flex-col gap-2 shadow-xl">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[10px] font-black text-orange-500 uppercase">Time {idx + 3}</span>
+                <button 
+                  onClick={() => swapWithWaitingTeam(idx)}
+                  className="p-1 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/60"
+                  title="Entrar na partida"
+                >
+                  <Play size={12} fill="currentColor" />
+                </button>
+              </div>
+              <div className="flex -space-x-2">
+                {team.map(id => {
+                  const p = players.find(player => player.id === id);
+                  return (
+                    <div key={id} className="w-6 h-6 rounded-full border-2 border-slate-900 bg-slate-800 overflow-hidden flex items-center justify-center text-[8px] font-bold text-white">
+                      {p?.photo_url ? (
+                        <img src={p.photo_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        p?.name.charAt(0).toUpperCase() || '?'
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const swapWithWaitingTeam = (waitingIdx: number) => {
+    // Logic to swap a waiting team with the loser or just pick one to replace Team B (common in winner stays)
+    // For now, let's just allow swapping with Team B
+    const newWaitingTeams = [...waitingTeams];
+    const teamToEnter = newWaitingTeams[waitingIdx];
+    const teamToExit = teamBPlayers;
+    
+    newWaitingTeams[waitingIdx] = teamToExit;
+    
+    setTeamBPlayers(teamToEnter);
+    setTeamBOnCourt(teamToEnter.slice(0, 6));
+    setWaitingTeams(newWaitingTeams);
+    setScoreB(0); // Reset score for the new team
+  };
+
   const teamAData = { team: 'A' as const, score: scoreA, sets: setsA, color: settings.team_a_color, name: settings.team_a_name, playerIds: teamAPlayers, onCourt: teamAOnCourt };
   const teamBData = { team: 'B' as const, score: scoreB, sets: setsB, color: settings.team_b_color, name: settings.team_b_name, playerIds: teamBPlayers, onCourt: teamBOnCourt };
 
@@ -510,6 +587,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
 
         <TeamSide {...teamBData} />
       </div>
+
+      <WaitingTeams />
 
       {/* Saved Toast */}
       <AnimatePresence>

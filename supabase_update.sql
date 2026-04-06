@@ -16,6 +16,15 @@ ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_a_players JSONB DEFAULT '[]
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_b_players JSONB DEFAULT '[]';
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_a_on_court JSONB DEFAULT '[]';
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_b_on_court JSONB DEFAULT '[]';
+ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS waiting_teams JSONB DEFAULT '[]';
+
+-- Create draws table if it doesn't exist
+CREATE TABLE IF NOT EXISTS draws (
+    id UUID PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    teams JSONB NOT NULL DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 -- Ensure Realtime is enabled for these tables
 -- We use a DO block to avoid errors if the table is already in the publication
@@ -47,6 +56,12 @@ BEGIN
         WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'settings'
     ) THEN
         ALTER PUBLICATION supabase_realtime ADD TABLE settings;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'draws'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE draws;
     END IF;
 END $$;
 

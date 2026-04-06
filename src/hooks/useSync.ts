@@ -30,7 +30,8 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
           teamAPlayers: data.team_a_players || [],
           teamBPlayers: data.team_b_players || [],
           teamAOnCourt: data.team_a_on_court || Array(6).fill(null),
-          teamBOnCourt: data.team_b_on_court || Array(6).fill(null)
+          teamBOnCourt: data.team_b_on_court || Array(6).fill(null),
+          waitingTeams: data.waiting_teams || []
         });
         setTimeout(() => { isRemoteUpdate.current = false; }, 100);
       }
@@ -69,7 +70,8 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
             teamAPlayers: data.team_a_players || [],
             teamBPlayers: data.team_b_players || [],
             teamAOnCourt: data.team_a_on_court || Array(6).fill(null),
-            teamBOnCourt: data.team_b_on_court || Array(6).fill(null)
+            teamBOnCourt: data.team_b_on_court || Array(6).fill(null),
+            waitingTeams: data.waiting_teams || []
           });
           setTimeout(() => { isRemoteUpdate.current = false; }, 100);
         }
