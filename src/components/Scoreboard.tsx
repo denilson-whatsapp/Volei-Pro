@@ -350,10 +350,10 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     const positions = [3, 2, 1, 4, 5, 0]; // Indices for positions 4, 3, 2, 5, 6, 1
     
     return (
-      <div className="flex flex-col gap-2 w-full max-w-[280px] mx-auto z-20">
+      <div className="flex flex-col gap-1 w-full max-w-[200px] sm:max-w-[240px] mx-auto z-20">
         {/* Bench / Waiting list at the top */}
-        <div className="flex flex-wrap justify-center gap-1 min-h-[32px] p-1 bg-black/20 rounded-lg border border-white/5">
-          {bench.length === 0 && <span className="text-[8px] text-white/20 uppercase font-bold self-center">Reserva Vazia</span>}
+        <div className="flex flex-wrap justify-center gap-1 min-h-[24px] p-1 bg-black/20 rounded-lg border border-white/5">
+          {bench.length === 0 && <span className="text-[7px] text-white/20 uppercase font-bold self-center">Vazio</span>}
           {bench.map(id => {
             const p = players.find(player => player.id === id);
             const isSelected = selectedPlayerId === id && selectedTeam === team;
@@ -362,7 +362,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
                 key={id}
                 onClick={(e) => { e.stopPropagation(); handleBenchClick(team, id); }}
                 className={cn(
-                  "px-1.5 py-0.5 rounded text-[9px] font-bold transition-all border",
+                  "px-1 py-0.5 rounded text-[8px] font-bold transition-all border",
                   isSelected 
                     ? "bg-orange-500 border-orange-400 text-white scale-110 shadow-lg z-10" 
                     : "bg-slate-800/80 border-white/10 text-slate-300 hover:border-white/30"
@@ -375,7 +375,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
         </div>
 
         {/* Court Grid */}
-        <div className="grid grid-cols-3 gap-1.5 aspect-[3/2] bg-black/10 rounded-xl p-2 border-2 border-white/10 relative overflow-hidden">
+        <div className="grid grid-cols-3 gap-1 aspect-[3/2] bg-black/10 rounded-xl p-1.5 border-2 border-white/10 relative overflow-hidden">
           {/* Net line indicator */}
           <div className="absolute top-0 left-0 w-full h-0.5 bg-white/20" />
           
@@ -395,28 +395,28 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
                     : "bg-slate-900/40 border-white/5 hover:border-white/20"
                 )}
               >
-                <span className="absolute top-0.5 left-1 text-[7px] font-black text-white/20">
+                <span className="absolute top-0.5 left-1 text-[6px] font-black text-white/20">
                   {posIdx === 3 ? '4' : posIdx === 2 ? '3' : posIdx === 1 ? '2' : posIdx === 4 ? '5' : posIdx === 5 ? '6' : '1'}
                 </span>
                 
                 {p ? (
                   <>
-                    <div className="w-6 h-6 rounded-full bg-slate-800 border border-white/10 overflow-hidden mb-0.5">
+                    <div className="w-5 h-5 rounded-full bg-slate-800 border border-white/10 overflow-hidden mb-0.5">
                       {p.photo_url ? (
                         <img src={p.photo_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-white/40">
+                        <div className="w-full h-full flex items-center justify-center text-[7px] font-bold text-white/40">
                           {p.name.charAt(0).toUpperCase()}
                         </div>
                       )}
                     </div>
-                    <span className="text-[8px] font-black text-white truncate w-full px-0.5 text-center leading-tight">
+                    <span className="text-[7px] font-black text-white truncate w-full px-0.5 text-center leading-tight">
                       {p.name.split(' ')[0]}
                     </span>
                   </>
                 ) : (
-                  <div className="w-5 h-5 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
-                    <UserPlus size={8} className="text-white/20" />
+                  <div className="w-4 h-4 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
+                    <UserPlus size={6} className="text-white/20" />
                   </div>
                 )}
               </button>
@@ -441,7 +441,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     
     return (
       <motion.div 
-        className="relative flex-1 flex flex-col items-center justify-center cursor-default select-none overflow-hidden group"
+        className="relative flex-1 flex flex-col items-center justify-center cursor-default select-none overflow-hidden group py-4 landscape:py-2"
       >
         {/* Background with color overlay */}
         <div 
@@ -451,42 +451,44 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
         />
         
         {/* Set indicators */}
-        <div className="absolute top-4 landscape:top-2 flex gap-1.5 z-20">
+        <div className="absolute top-4 landscape:top-2 flex gap-2 z-20">
           {Array.from({ length: settings.max_sets }).map((_, i) => (
             <div 
               key={i}
               className={cn(
-                "w-2.5 h-2.5 rounded-full border-2 transition-all duration-300",
-                i < sets ? "bg-white border-white scale-110 shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "border-white/20"
+                "w-4 h-4 landscape:w-3 landscape:h-3 rounded-full border-2 transition-all duration-300",
+                i < sets ? "bg-white border-white scale-110 shadow-[0_0_12px_rgba(255,255,255,0.7)]" : "border-white/20"
               )}
             />
           ))}
         </div>
 
-        <div className="z-10 flex flex-col items-center w-full px-4 mt-10 landscape:mt-6">
-          <h2 className="text-xl landscape:text-base font-black text-white uppercase tracking-tighter mb-2 drop-shadow-md flex items-center gap-2">
+        <div className="z-10 flex flex-col items-center w-full px-4 mt-8 landscape:mt-4">
+          <h2 className="text-2xl landscape:text-lg font-black text-white uppercase tracking-tighter mb-1 drop-shadow-lg flex items-center gap-3">
             {name}
             <button 
               onClick={(e) => { e.stopPropagation(); setShowEscalacao(true); setSelectingTeam(team); }}
-              className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
             >
-              <Users size={14} />
+              <Users size={18} />
             </button>
           </h2>
-          
-          <CourtView team={team} onCourt={onCourt} bench={bench} />
         </div>
         
         <span 
           onClick={() => addPoint(team)}
           className={cn(
-            "text-[8rem] sm:text-[10rem] md:text-[14rem] landscape:text-[4rem] landscape:md:text-[7rem] font-black text-white leading-none z-10 drop-shadow-2xl transition-opacity mt-4"
+            "text-[12rem] sm:text-[18rem] md:text-[24rem] lg:text-[28rem] landscape:text-[8rem] landscape:md:text-[14rem] landscape:lg:text-[18rem] font-black text-white leading-none z-10 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-all active:scale-95 cursor-pointer select-none my-2"
           )}
         >
           {score}
         </span>
 
-        <div className="absolute bottom-6 landscape:bottom-2 opacity-0 group-hover:opacity-100 transition-opacity text-white/40 text-[10px] font-bold uppercase tracking-widest">
+        <div className="z-10 w-full transform scale-90 sm:scale-100">
+          <CourtView team={team} onCourt={onCourt} bench={bench} />
+        </div>
+
+        <div className="absolute bottom-4 landscape:bottom-1 opacity-0 group-hover:opacity-100 transition-opacity text-white/40 text-[10px] font-bold uppercase tracking-widest">
           Toque para pontuar
         </div>
       </motion.div>
