@@ -24,16 +24,27 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onLogout }) => {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [supabaseOk, setSupabaseOk] = React.useState<boolean | null>(null);
+  const [supabaseStatus, setSupabaseStatus] = React.useState<'connected' | 'offline' | 'error'>('offline');
 
   React.useEffect(() => {
-    if (isSupabaseConfigured) {
-      testSupabaseConnection().then(result => {
-        setSupabaseOk(result.success);
-      });
-    } else {
-      setSupabaseOk(false);
-    }
+    const checkConnection = async () => {
+      if (!isSupabaseConfigured) {
+        setSupabaseStatus('offline');
+        return;
+      }
+      
+      try {
+        const result = await testSupabaseConnection();
+        setSupabaseStatus(result.success ? 'connected' : 'error');
+      } catch (e) {
+        setSupabaseStatus('error');
+      }
+    };
+
+    checkConnection();
+    // Re-check every 30 seconds
+    const interval = setInterval(checkConnection, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const menuItems = [
@@ -117,15 +128,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onL
 
         <div className="mt-auto pt-6 border-t border-white/10 space-y-4">
           <div className="px-4 py-2 bg-slate-800/50 rounded-xl flex items-center gap-3">
-            {supabaseOk ? (
+            {supabaseStatus === 'connected' ? (
               <Database size={16} className="text-emerald-400" />
+            ) : supabaseStatus === 'error' ? (
+              <Database size={16} className="text-red-400" />
             ) : (
               <CloudOff size={16} className="text-orange-400" />
             )}
             <div className="flex flex-col">
               <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Nuvem</span>
-              <span className={cn("text-xs font-medium", supabaseOk ? "text-emerald-400" : "text-orange-400")}>
-                {supabaseOk ? "Sincronizado" : "Modo Local"}
+              <span className={cn(
+                "text-xs font-medium", 
+                supabaseStatus === 'connected' ? "text-emerald-400" : 
+                supabaseStatus === 'error' ? "text-red-400" : "text-orange-400"
+              )}>
+                {supabaseStatus === 'connected' ? "Sincronizado" : 
+                 supabaseStatus === 'error' ? "Erro de Conexão" : "Modo Local"}
               </span>
             </div>
           </div>

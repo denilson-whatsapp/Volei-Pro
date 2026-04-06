@@ -63,21 +63,27 @@ export function usePlayers(groupId: string | null) {
   }, [players, groupId]);
 
   async function fetchPlayers() {
-    if (!groupId) return;
+    if (!groupId) {
+      setLoading(false);
+      return;
+    }
     
+    setLoading(true);
     // 1. Load from Supabase (Source of Truth)
     try {
-      const dbData = await dbFetchPlayers(groupId);
-      if (dbData !== null) {
-        const mappedPlayers: Player[] = dbData.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          active: p.active
-        }));
-        setPlayers(mappedPlayers);
-        localStorage.setItem('voley_players_' + groupId, JSON.stringify(mappedPlayers));
-        setLoading(false);
-        return;
+      if (isSupabaseConfigured) {
+        const dbData = await dbFetchPlayers(groupId);
+        if (dbData !== null) {
+          const mappedPlayers: Player[] = dbData.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            active: p.active
+          }));
+          setPlayers(mappedPlayers);
+          localStorage.setItem('voley_players_' + groupId, JSON.stringify(mappedPlayers));
+          setLoading(false);
+          return;
+        }
       }
     } catch (e) {
       console.error('usePlayers: Error fetching from Supabase:', e);

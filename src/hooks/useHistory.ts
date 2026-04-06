@@ -12,22 +12,28 @@ export function useHistory(groupId: string | null) {
   const hasSynced = useRef(false);
 
   const fetchHistory = async () => {
-    if (!groupId) return;
+    if (!groupId) {
+      setLoading(false);
+      return;
+    }
     
+    setLoading(true);
     // 1. Try Supabase (Source of Truth)
     try {
-      const [dbMatches, dbDraws] = await Promise.all([
-        dbFetchMatches(groupId),
-        dbFetchDraws(groupId)
-      ]);
-
-      if (dbMatches !== null && dbDraws !== null) {
-        setMatches(dbMatches);
-        setDraws(dbDraws);
-        localStorage.setItem('voley_matches_' + groupId, JSON.stringify(dbMatches));
-        localStorage.setItem('voley_draws_' + groupId, JSON.stringify(dbDraws));
-        setLoading(false);
-        return;
+      if (isSupabaseConfigured) {
+        const [dbMatches, dbDraws] = await Promise.all([
+          dbFetchMatches(groupId),
+          dbFetchDraws(groupId)
+        ]);
+  
+        if (dbMatches !== null && dbDraws !== null) {
+          setMatches(dbMatches);
+          setDraws(dbDraws);
+          localStorage.setItem('voley_matches_' + groupId, JSON.stringify(dbMatches));
+          localStorage.setItem('voley_draws_' + groupId, JSON.stringify(dbDraws));
+          setLoading(false);
+          return;
+        }
       }
     } catch (e) {
       console.error('useHistory: Error fetching from Supabase:', e);

@@ -64,11 +64,14 @@ export default function App() {
     localStorage.removeItem('voley_group_id');
   };
 
+  // Only show loading screen if we have a groupId and at least one hook is still loading
+  const isLoading = groupId && (settingsLoading || playersLoading || historyLoading);
+
   if (!groupId) {
     return <Login onJoin={handleJoin} />;
   }
 
-  if ((settingsLoading || playersLoading || historyLoading) && !forceLoad) {
+  if (isLoading && !forceLoad) {
     return (
       <div className="h-screen w-screen bg-slate-950 flex items-center justify-center p-6">
         <div className="flex flex-col items-center gap-6 max-w-md text-center">

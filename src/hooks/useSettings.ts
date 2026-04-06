@@ -73,16 +73,22 @@ export function useSettings(groupId: string | null) {
   }, [settings, groupId]);
 
   async function fetchSettings() {
-    if (!groupId) return;
+    if (!groupId) {
+      setLoading(false);
+      return;
+    }
     
+    setLoading(true);
     // 1. Try Supabase (Source of Truth)
     try {
-      const dbData = await dbFetchSettings(groupId);
-      if (dbData !== null) {
-        setSettings(dbData);
-        localStorage.setItem('voley_settings_' + groupId, JSON.stringify(dbData));
-        setLoading(false);
-        return;
+      if (isSupabaseConfigured) {
+        const dbData = await dbFetchSettings(groupId);
+        if (dbData !== null) {
+          setSettings(dbData);
+          localStorage.setItem('voley_settings_' + groupId, JSON.stringify(dbData));
+          setLoading(false);
+          return;
+        }
       }
     } catch (e) {
       console.error('useSettings: Error fetching from Supabase:', e);

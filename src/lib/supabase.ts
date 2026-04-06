@@ -3,19 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Supabase: CRITICAL - VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing! Synchronization will NOT work.');
+// Helper to check if Supabase is actually configured
+export const isSupabaseConfigured = !!supabaseUrl && !!supabaseAnonKey && supabaseUrl !== 'YOUR_SUPABASE_URL';
+
+if (!isSupabaseConfigured) {
+  console.warn('Supabase: Modo Offline/Local ativado. (VITE_SUPABASE_URL não configurada)');
 } else {
-  console.log('Supabase: Client initialized successfully.');
+  console.log('Supabase: Cliente inicializado com sucesso.');
 }
 
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder'
 );
-
-// Helper to check if Supabase is actually configured
-export const isSupabaseConfigured = !!supabaseUrl && !!supabaseAnonKey;
 
 // --- Groups / Auth ---
 export async function dbCheckGroupExists(groupId: string) {
