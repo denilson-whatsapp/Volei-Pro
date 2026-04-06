@@ -86,7 +86,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
   };
 
   // Sync state with the group
-  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive, teamAPlayers, teamBPlayers, teamAOnCourt, teamBOnCourt, waitingTeams }, (newState) => {
+  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive, teamAPlayers, teamBPlayers, teamAOnCourt, teamBOnCourt, waitingTeams, history }, (newState) => {
     if (newState.scoreA !== undefined) setScoreA(newState.scoreA);
     if (newState.scoreB !== undefined) setScoreB(newState.scoreB);
     if (newState.setsA !== undefined) setSetsA(newState.setsA);
@@ -99,6 +99,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     if (newState.teamAOnCourt !== undefined) setTeamAOnCourt(newState.teamAOnCourt);
     if (newState.teamBOnCourt !== undefined) setTeamBOnCourt(newState.teamBOnCourt);
     if (newState.waitingTeams !== undefined) setWaitingTeams(newState.waitingTeams);
+    if (newState.history !== undefined) setHistory(newState.history);
   });
 
   const saveMatch = async () => {

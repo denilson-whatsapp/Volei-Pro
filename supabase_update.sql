@@ -17,6 +17,7 @@ ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_b_players JSONB DEFAULT '[]
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_a_on_court JSONB DEFAULT '[]';
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS team_b_on_court JSONB DEFAULT '[]';
 ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS waiting_teams JSONB DEFAULT '[]';
+ALTER TABLE scoreboard ADD COLUMN IF NOT EXISTS history JSONB DEFAULT '[]';
 
 -- Create draws table if it doesn't exist
 CREATE TABLE IF NOT EXISTS draws (
