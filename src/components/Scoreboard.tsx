@@ -1,44 +1,63 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { RotateCcw, Undo2, Play, Pause, RefreshCw, X, Save } from 'lucide-react';
+import { 
+  RotateCcw, 
+  Undo2, 
+  Play, 
+  Pause, 
+  RefreshCw, 
+  X, 
+  Save, 
+  Volume2, 
+  VolumeX, 
+  Mic, 
+  MicOff, 
+  Settings as SettingsIcon,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
 import { Match, Settings, Player } from '../types';
 import { useTimer } from '../hooks/useTimer';
 import { useSync } from '../hooks/useSync';
 import { formatTime, cn, generateId } from '../lib/utils';
 import { dbSaveScoreboard, dbUpdatePlayerStats } from '../lib/supabase';
 import { SyncManager } from '../lib/syncManager';
-import { Users, UserPlus, Trophy as TrophyIcon, ChevronDown } from 'lucide-react';
 
 interface ScoreboardProps {
   settings: Settings;
   groupId: string;
   players: Player[];
   onSaveMatch: (match: Match) => void;
+  onUpdateSettings?: (settings: Partial<Settings>) => void;
 }
 
-export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, players, onSaveMatch }) => {
+export const Scoreboard: React.FC<ScoreboardProps> = ({ 
+  settings, 
+  groupId, 
+  players, 
+  onSaveMatch,
+  onUpdateSettings 
+}) => {
+  // Current game score states
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
   const [setsA, setSetsA] = useState(0);
   const [setsB, setSetsB] = useState(0);
   const [isSwapped, setIsSwapped] = useState(false);
+  const [history, setHistory] = useState<{ a: number; b: number }[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+
+  // Keep other variables in state for Supabase/P2P sync compatibility
   const [teamAPlayers, setTeamAPlayers] = useState<string[]>([]);
   const [teamBPlayers, setTeamBPlayers] = useState<string[]>([]);
   const [teamAOnCourt, setTeamAOnCourt] = useState<(string | null)[]>(Array(6).fill(null));
   const [teamBOnCourt, setTeamBOnCourt] = useState<(string | null)[]>(Array(6).fill(null));
   const [waitingTeams, setWaitingTeams] = useState<string[][]>([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [selectedPositionIndex, setSelectedPositionIndex] = useState<number | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<'A' | 'B' | null>(null);
-  const [history, setHistory] = useState<{ a: number; b: number }[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showSavedToast, setShowSavedToast] = useState(false);
-  const [showEscalacao, setShowEscalacao] = useState(false);
-  const [selectingTeam, setSelectingTeam] = useState<'A' | 'B' | null>(null);
-  
+
   const { seconds, isActive, toggleTimer, resetTimer, setSeconds, setIsActive } = useTimer();
 
-  // Audio helpers
+  // Audio & speech helper functions
   const playSound = (type: 'beep' | 'whistle') => {
     if (!settings.enable_sounds) return;
     try {
@@ -58,7 +77,6 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
         oscillator.start();
         oscillator.stop(audioCtx.currentTime + 0.1);
       } else {
-        // Whistle sound (Mixkit)
         const whistle = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
         whistle.volume = 0.3;
         whistle.play().catch(e => console.log('Audio play failed:', e));
@@ -72,29 +90,44 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     if (!settings.enable_voice) return;
     try {
       if (!window.speechSynthesis || !SpeechSynthesisUtterance) return;
-      // Replace "Time" with "Equipe" to avoid English pronunciation
       const localizedText = text.replace(/Time/gi, 'Equipe');
-      
       const utterance = new SpeechSynthesisUtterance(localizedText);
       utterance.lang = 'pt-BR';
       utterance.rate = 1.1;
 
-      // Try to find a male voice
       const voices = window.speechSynthesis.getVoices();
-      const maleVoice = voices.find(v => v.lang.startsWith('pt') && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('masculino') || v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('google português do brasil')));
+      const maleVoice = voices.find(v => v.lang.startsWith('pt') && (
+        v.name.toLowerCase().includes('male') || 
+        v.name.toLowerCase().includes('masculino') || 
+        v.name.toLowerCase().includes('daniel') || 
+        v.name.toLowerCase().includes('google português do brasil')
+      ));
       
       if (maleVoice) {
         utterance.voice = maleVoice;
       }
-      
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn('Speech synthesis not fully supported in this context:', e);
     }
   };
 
-  // Sync state with the group
-  useSync(groupId, { scoreA, scoreB, setsA, setsB, isSwapped, seconds, isActive, teamAPlayers, teamBPlayers, teamAOnCourt, teamBOnCourt, waitingTeams, history }, (newState) => {
+  // Sync state across multiple monitors and devices using useSync
+  useSync(groupId, { 
+    scoreA, 
+    scoreB, 
+    setsA, 
+    setsB, 
+    isSwapped, 
+    seconds, 
+    isActive, 
+    teamAPlayers, 
+    teamBPlayers, 
+    teamAOnCourt, 
+    teamBOnCourt, 
+    waitingTeams, 
+    history 
+  }, (newState) => {
     if (newState.scoreA !== undefined) setScoreA(newState.scoreA);
     if (newState.scoreB !== undefined) setScoreB(newState.scoreB);
     if (newState.setsA !== undefined) setSetsA(newState.setsA);
@@ -128,7 +161,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
       created_at: new Date().toISOString()
     };
 
-    // Update individual player stats
+    // Update individual player stats if players exist
     const allMatchPlayers = [...new Set([...teamAPlayers, ...teamBPlayers])];
     for (const playerId of allMatchPlayers) {
       const isTeamA = teamAPlayers.includes(playerId);
@@ -152,7 +185,6 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     }
 
     onSaveMatch(matchData);
-
     setIsSaving(false);
     setShowSavedToast(true);
     setTimeout(() => setShowSavedToast(false), 3000);
@@ -160,13 +192,6 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
   };
 
   const addPoint = (team: 'A' | 'B') => {
-    if (selectedPlayerId || selectedPositionIndex !== null) {
-      setSelectedPlayerId(null);
-      setSelectedPositionIndex(null);
-      setSelectedTeam(null);
-      return;
-    }
-    
     if (!isActive) toggleTimer();
     setHistory([...history, { a: scoreA, b: scoreB }]);
     
@@ -182,6 +207,16 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
       playSound('beep');
       speak(`${scoreA} a ${newScore}`);
       checkSetWinner(scoreA, newScore, 'B');
+    }
+  };
+
+  const subtractPoint = (team: 'A' | 'B', e: React.MouseEvent) => {
+    e.stopPropagation(); // Avoid triggering addPoint
+    setHistory([...history, { a: scoreA, b: scoreB }]);
+    if (team === 'A') {
+      setScoreA(prev => Math.max(0, prev - 1));
+    } else {
+      setScoreB(prev => Math.max(0, prev - 1));
     }
   };
 
@@ -215,7 +250,6 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
       }
       
       if (gameEnded) {
-        // Keep the score for a moment before reset or just stop
         setIsActive(false);
       } else {
         resetSet();
@@ -244,543 +278,358 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     setSetsA(0);
     setSetsB(0);
     setHistory([]);
-    setTeamAPlayers([]);
-    setTeamBPlayers([]);
     resetTimer();
   };
 
-  const togglePlayerInTeam = (playerId: string, team: 'A' | 'B') => {
-    if (team === 'A') {
-      const isRemoving = teamAPlayers.includes(playerId);
-      setTeamAPlayers(prev => 
-        isRemoving ? prev.filter(id => id !== playerId) : [...prev, playerId]
-      );
-      setTeamBPlayers(prev => prev.filter(id => id !== playerId));
-      
-      if (isRemoving) {
-        setTeamAOnCourt(prev => prev.map(id => id === playerId ? null : id));
-      }
-    } else {
-      const isRemoving = teamBPlayers.includes(playerId);
-      setTeamBPlayers(prev => 
-        isRemoving ? prev.filter(id => id !== playerId) : [...prev, playerId]
-      );
-      setTeamAPlayers(prev => prev.filter(id => id !== playerId));
-      
-      if (isRemoving) {
-        setTeamBOnCourt(prev => prev.map(id => id === playerId ? null : id));
-      }
-    }
-  };
-
-  const handleCourtClick = (team: 'A' | 'B', index: number) => {
-    const onCourt = team === 'A' ? teamAOnCourt : teamBOnCourt;
-    
-    if (selectedPlayerId && selectedTeam === team) {
-      // Swap bench player with court position
-      const newOnCourt = [...onCourt];
-      // If the player was already on court elsewhere, remove them from there
-      const existingIdx = newOnCourt.indexOf(selectedPlayerId);
-      if (existingIdx !== -1) newOnCourt[existingIdx] = null;
-      
-      newOnCourt[index] = selectedPlayerId;
-      if (team === 'A') setTeamAOnCourt(newOnCourt);
-      else setTeamBOnCourt(newOnCourt);
-      
-      setSelectedPlayerId(null);
-      setSelectedPositionIndex(null);
-      setSelectedTeam(null);
-    } else if (selectedPositionIndex !== null && selectedTeam === team) {
-      // Swap two court positions
-      const newOnCourt = [...onCourt];
-      const temp = newOnCourt[index];
-      newOnCourt[index] = newOnCourt[selectedPositionIndex];
-      newOnCourt[selectedPositionIndex] = temp;
-      if (team === 'A') setTeamAOnCourt(newOnCourt);
-      else setTeamBOnCourt(newOnCourt);
-      
-      setSelectedPlayerId(null);
-      setSelectedPositionIndex(null);
-      setSelectedTeam(null);
-    } else {
-      // Select court position
-      setSelectedPositionIndex(index);
-      setSelectedPlayerId(null);
-      setSelectedTeam(team);
-    }
-  };
-
-  const handleBenchClick = (team: 'A' | 'B', playerId: string) => {
-    if (selectedPositionIndex !== null && selectedTeam === team) {
-      // Swap court position with bench player
-      const onCourt = team === 'A' ? teamAOnCourt : teamBOnCourt;
-      const newOnCourt = [...onCourt];
-      
-      // If the player was already on court elsewhere, remove them from there
-      const existingIdx = newOnCourt.indexOf(playerId);
-      if (existingIdx !== -1) newOnCourt[existingIdx] = null;
-
-      newOnCourt[selectedPositionIndex] = playerId;
-      
-      // If the player is from a waiting team, add them to the current team and remove from waiting
-      const isWaiting = waitingTeams.some(t => t.includes(playerId));
-      if (isWaiting) {
-        const newWaitingTeams = waitingTeams.map(t => t.filter(id => id !== playerId));
-        setWaitingTeams(newWaitingTeams);
-        
-        if (team === 'A') {
-          if (!teamAPlayers.includes(playerId)) setTeamAPlayers(prev => [...prev, playerId]);
-          setTeamBPlayers(prev => prev.filter(id => id !== playerId));
-        } else {
-          if (!teamBPlayers.includes(playerId)) setTeamBPlayers(prev => [...prev, playerId]);
-          setTeamAPlayers(prev => prev.filter(id => id !== playerId));
-        }
-      }
-
-      if (team === 'A') setTeamAOnCourt(newOnCourt);
-      else setTeamBOnCourt(newOnCourt);
-      
-      setSelectedPlayerId(null);
-      setSelectedPositionIndex(null);
-      setSelectedTeam(null);
-    } else {
-      // Select bench player
-      setSelectedPlayerId(playerId);
-      setSelectedPositionIndex(null);
-      setSelectedTeam(team);
-    }
-  };
-
-  const CourtView = ({ team, onCourt, bench }: { team: 'A' | 'B', onCourt: (string | null)[], bench: string[] }) => {
-    // Volleyball positions:
-    // 4 3 2
-    // 5 6 1
-    const positions = [3, 2, 1, 4, 5, 0]; // Indices for positions 4, 3, 2, 5, 6, 1
-    
-    return (
-      <div className="flex flex-col gap-1 w-full max-w-[200px] sm:max-w-[240px] mx-auto z-20">
-        {/* Bench / Waiting list at the top */}
-        <div className="flex flex-wrap justify-center gap-1 min-h-[24px] p-1 bg-black/20 rounded-lg border border-white/5">
-          {bench.length === 0 && <span className="text-[7px] text-white/20 uppercase font-bold self-center">Vazio</span>}
-          {bench.map(id => {
-            const p = players.find(player => player.id === id);
-            const isSelected = selectedPlayerId === id && selectedTeam === team;
-            return (
-              <button
-                key={id}
-                onClick={(e) => { e.stopPropagation(); handleBenchClick(team, id); }}
-                className={cn(
-                  "px-1 py-0.5 rounded text-[8px] font-bold transition-all border",
-                  isSelected 
-                    ? "bg-orange-500 border-orange-400 text-white scale-110 shadow-lg z-10" 
-                    : "bg-slate-800/80 border-white/10 text-slate-300 hover:border-white/30"
-                )}
-              >
-                {p?.name.split(' ')[0]}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Court Grid */}
-        <div className="grid grid-cols-3 gap-1 aspect-[3/2] bg-black/10 rounded-xl p-1.5 border-2 border-white/10 relative overflow-hidden">
-          {/* Net line indicator */}
-          <div className="absolute top-0 left-0 w-full h-0.5 bg-white/20" />
-          
-          {positions.map((posIdx) => {
-            const playerId = onCourt[posIdx];
-            const p = players.find(player => player.id === playerId);
-            const isSelected = selectedPositionIndex === posIdx && selectedTeam === team;
-            
-            return (
-              <button
-                key={posIdx}
-                onClick={(e) => { e.stopPropagation(); handleCourtClick(team, posIdx); }}
-                className={cn(
-                  "relative flex flex-col items-center justify-center rounded-lg border-2 transition-all group",
-                  isSelected 
-                    ? "bg-orange-500/30 border-orange-500 scale-105 z-10 shadow-xl" 
-                    : "bg-slate-900/40 border-white/5 hover:border-white/20"
-                )}
-              >
-                <span className="absolute top-0.5 left-1 text-[6px] font-black text-white/20">
-                  {posIdx === 3 ? '4' : posIdx === 2 ? '3' : posIdx === 1 ? '2' : posIdx === 4 ? '5' : posIdx === 5 ? '6' : '1'}
-                </span>
-                
-                {p ? (
-                  <>
-                    <div className="w-5 h-5 rounded-full bg-slate-800 border border-white/10 overflow-hidden mb-0.5">
-                      {p.photo_url ? (
-                        <img src={p.photo_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[7px] font-bold text-white/40">
-                          {p.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-[7px] font-black text-white truncate w-full px-0.5 text-center leading-tight">
-                      {p.name.split(' ')[0]}
-                    </span>
-                  </>
-                ) : (
-                  <div className="w-4 h-4 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center">
-                    <UserPlus size={6} className="text-white/20" />
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const TeamSide = ({ team, score, sets, color, name, playerIds, onCourt }: { 
-    team: 'A' | 'B', 
-    score: number, 
-    sets: number, 
-    color: string,
-    name: string,
-    playerIds: string[],
-    onCourt: (string | null)[]
-  }) => {
-    const allWaitingPlayers = waitingTeams.flat();
-    const bench = [...playerIds.filter(id => !onCourt.includes(id)), ...allWaitingPlayers];
-    
-    return (
-      <motion.div 
-        className="relative flex-1 flex flex-col items-center justify-center cursor-default select-none overflow-hidden group py-4 landscape:py-2"
-      >
-        {/* Background with color overlay */}
-        <div 
-          onClick={() => addPoint(team)}
-          className="absolute inset-0 opacity-20 transition-colors duration-500"
-          style={{ backgroundColor: color }}
-        />
-        
-        {/* Set indicators */}
-        <div className="absolute top-4 landscape:top-2 flex gap-2 z-20">
-          {Array.from({ length: settings.max_sets }).map((_, i) => (
-            <div 
-              key={i}
-              className={cn(
-                "w-4 h-4 landscape:w-3 landscape:h-3 rounded-full border-2 transition-all duration-300",
-                i < sets ? "bg-white border-white scale-110 shadow-[0_0_12px_rgba(255,255,255,0.7)]" : "border-white/20"
-              )}
-            />
-          ))}
-        </div>
-
-        <div className="z-10 flex flex-col items-center w-full px-4 mt-8 landscape:mt-4">
-          <h2 className="text-2xl landscape:text-lg font-black text-white uppercase tracking-tighter mb-1 drop-shadow-lg flex items-center gap-3">
-            {name}
-            <button 
-              onClick={(e) => { e.stopPropagation(); setShowEscalacao(true); setSelectingTeam(team); }}
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors"
-            >
-              <Users size={18} />
-            </button>
-          </h2>
-        </div>
-        
-        <span 
-          onClick={() => addPoint(team)}
-          className={cn(
-            "text-[12rem] sm:text-[18rem] md:text-[24rem] lg:text-[28rem] landscape:text-[8rem] landscape:md:text-[14rem] landscape:lg:text-[18rem] font-black text-white leading-none z-10 drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-all active:scale-95 cursor-pointer select-none my-2"
-          )}
-        >
-          {score}
-        </span>
-
-        <div className="z-10 w-full transform scale-90 sm:scale-100">
-          <CourtView team={team} onCourt={onCourt} bench={bench} />
-        </div>
-
-        <div className="absolute bottom-4 landscape:bottom-1 opacity-0 group-hover:opacity-100 transition-opacity text-white/40 text-[10px] font-bold uppercase tracking-widest">
-          Toque para pontuar
-        </div>
-      </motion.div>
-    );
-  };
-
-  const WaitingTeams = () => {
-    if (waitingTeams.length === 0) return null;
-
-    return (
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2">
-        <div className="flex items-center gap-2 text-white/40 text-[10px] font-bold uppercase tracking-widest">
-          <RefreshCw size={12} />
-          Próximos Times
-        </div>
-        <div className="flex gap-4">
-          {waitingTeams.map((team, idx) => (
-            <div key={idx} className="bg-slate-900/80 backdrop-blur-sm border border-white/10 rounded-2xl p-3 flex flex-col gap-2 shadow-xl">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[10px] font-black text-orange-500 uppercase">Time {idx + 3}</span>
-                <button 
-                  onClick={() => swapWithWaitingTeam(idx)}
-                  className="p-1 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-white/60"
-                  title="Entrar na partida"
-                >
-                  <Play size={12} fill="currentColor" />
-                </button>
-              </div>
-              <div className="flex -space-x-2">
-                {team.map(id => {
-                  const p = players.find(player => player.id === id);
-                  return (
-                    <div key={id} className="w-6 h-6 rounded-full border-2 border-slate-900 bg-slate-800 overflow-hidden flex items-center justify-center text-[8px] font-bold text-white">
-                      {p?.photo_url ? (
-                        <img src={p.photo_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        p?.name.charAt(0).toUpperCase() || '?'
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const swapWithWaitingTeam = (waitingIdx: number) => {
-    // Logic to swap a waiting team with the loser or just pick one to replace Team B (common in winner stays)
-    // For now, let's just allow swapping with Team B
-    const newWaitingTeams = [...waitingTeams];
-    const teamToEnter = newWaitingTeams[waitingIdx];
-    const teamToExit = teamBPlayers;
-    
-    newWaitingTeams[waitingIdx] = teamToExit;
-    
-    setTeamBPlayers(teamToEnter);
-    setTeamBOnCourt(teamToEnter.slice(0, 6));
-    setWaitingTeams(newWaitingTeams);
-    setScoreB(0); // Reset score for the new team
-  };
-
-  const teamAData = { team: 'A' as const, score: scoreA, sets: setsA, color: settings.team_a_color, name: settings.team_a_name, playerIds: teamAPlayers, onCourt: teamAOnCourt };
-  const teamBData = { team: 'B' as const, score: scoreB, sets: setsB, color: settings.team_b_color, name: settings.team_b_name, playerIds: teamBPlayers, onCourt: teamBOnCourt };
-
   return (
-    <div className="relative h-full flex flex-col bg-slate-950 overflow-hidden">
-      {/* Court Texture */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/sandpaper.png')]" />
-      
-      {/* Main Score Area */}
-      <div className={cn(
-        "flex-1 min-h-0 flex transition-all duration-700",
-        isSwapped ? "flex-row-reverse" : "flex-row",
-        "portrait:flex-col landscape:flex-row"
-      )}>
-        <TeamSide {...teamAData} />
+    <div className="relative h-full flex flex-col bg-slate-950 overflow-hidden font-sans">
+      {/* Subtle court grid textures */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/sandpaper.png')]" />
+
+      {/* 1. BARRA DE CONFIGURAÇÕES DO JOGO (GAME RULES BAR) */}
+      <div className="w-full bg-slate-900/60 backdrop-blur-md border-b border-white/5 py-3 px-6 z-40 flex items-center justify-between gap-4 select-none">
         
-        {/* Net / Divider */}
-        <div className={cn(
-          "relative bg-white/10 flex items-center justify-center z-20",
-          "portrait:h-1 portrait:w-full landscape:w-1 landscape:h-full"
-        )}>
-          <div className={cn(
-            "absolute bg-gradient-to-b from-transparent via-white/40 to-transparent",
-            "portrait:w-full portrait:h-px landscape:h-full landscape:w-px"
-          )} />
-          <button 
-            onClick={toggleTimer}
-            className="bg-slate-900 px-6 py-3 landscape:px-4 landscape:py-2 rounded-2xl border border-white/20 shadow-2xl backdrop-blur-md active:scale-95 transition-transform cursor-pointer"
+        {/* Placeholder spacer for Menu alignment on mobile */}
+        <div className="w-10 xl:hidden flex-shrink-0" />
+
+        {/* Dynamic settings controllers */}
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 flex-1 text-xs">
+          
+          {/* Quick Point limit selector */}
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl px-2.5 py-1">
+            <span className="text-slate-400 font-medium">Pontos do Set:</span>
+            <button 
+              type="button" 
+              onClick={() => onUpdateSettings?.({ points_per_set: Math.max(5, settings.points_per_set - 1) })}
+              className="w-5 h-5 flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded font-black active:scale-90"
+            >
+              -
+            </button>
+            <span className="font-bold text-orange-500 font-mono w-5 text-center">{settings.points_per_set}</span>
+            <button 
+              type="button" 
+              onClick={() => onUpdateSettings?.({ points_per_set: settings.points_per_set + 1 })}
+              className="w-5 h-5 flex items-center justify-center bg-white/5 hover:bg-white/10 text-white rounded font-black active:scale-90"
+            >
+              +
+            </button>
+          </div>
+
+          {/* Quick Set Limit config */}
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl px-2.5 py-1">
+            <span className="text-slate-400 font-medium">Melhor de:</span>
+            <button
+              onClick={() => {
+                const nextSets: Record<number, number> = { 1: 3, 3: 5, 5: 1 };
+                onUpdateSettings?.({ max_sets: nextSets[settings.max_sets] || 3 });
+              }}
+              className="px-2 py-0.5 bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 text-[10px] font-black rounded uppercase tracking-wide transition-all"
+            >
+              {settings.max_sets} {settings.max_sets === 1 ? 'Set' : 'Sets'}
+            </button>
+          </div>
+
+          {/* Sound Effect Toggle */}
+          <button
+            onClick={() => onUpdateSettings?.({ enable_sounds: !settings.enable_sounds })}
+            className={cn(
+              "p-1.5 rounded-xl border flex items-center gap-1 transition-all",
+              settings.enable_sounds 
+                ? "bg-slate-800 border-white/10 text-emerald-400 hover:bg-slate-750" 
+                : "bg-slate-900 border-white/5 text-slate-500 hover:text-slate-400"
+            )}
+            title="Efeitos sonoros"
           >
-            <span className="text-3xl md:text-4xl landscape:text-2xl font-mono font-black text-orange-500 tabular-nums">
-              {formatTime(seconds)}
-            </span>
+            {settings.enable_sounds ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          </button>
+
+          {/* Speech voice announcer toggle */}
+          <button
+            onClick={() => onUpdateSettings?.({ enable_voice: !settings.enable_voice })}
+            className={cn(
+              "p-1.5 rounded-xl border flex items-center gap-1 transition-all",
+              settings.enable_voice 
+                ? "bg-slate-800 border-white/10 text-emerald-400 hover:bg-slate-750" 
+                : "bg-slate-900 border-white/5 text-slate-500 hover:text-slate-400"
+            )}
+            title="Anunciador de voz"
+          >
+            {settings.enable_voice ? <Mic size={14} /> : <MicOff size={14} />}
           </button>
         </div>
 
-        <TeamSide {...teamBData} />
+        {/* Group name visual tag */}
+        <div className="hidden md:flex items-center gap-1.5 py-1 px-3 bg-slate-900 border border-white/5 rounded-xl text-[10px] font-bold text-slate-400 font-mono tracking-wider">
+          TURMA: {groupId}
+        </div>
       </div>
 
-      <WaitingTeams />
+      {/* 2. PLACAR AREA (GIANT INTERACTIVE SPLIT SCORE LAYOUT) */}
+      <div className={cn(
+        "flex-1 min-h-0 flex overflow-hidden transition-all duration-500",
+        isSwapped ? "flex-row-reverse" : "flex-row",
+        "portrait:flex-col landscape:flex-row"
+      )}>
+        
+        {/* TEAM A PANEL */}
+        <div 
+          onClick={() => addPoint('A')}
+          className="relative flex-1 flex flex-col items-center justify-center p-6 select-none cursor-pointer group/side transition-all overflow-hidden"
+        >
+          {/* Subtle color highlight background glow */}
+          <div 
+            className="absolute inset-0 opacity-[0.12] group-hover/side:opacity-[0.18] transition-opacity duration-300 pointer-events-none"
+            style={{ backgroundColor: settings.team_a_color }}
+          />
 
-      {/* Saved Toast */}
+          {/* Team Name Header with accent border line */}
+          <div className="z-10 flex flex-col items-center mb-4 transition-all">
+            <span 
+              className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-white drop-shadow-md text-center max-w-[280px] truncate"
+              style={{ textShadow: `0 4px 12px ${settings.team_a_color}20` }}
+            >
+              {settings.team_a_name}
+            </span>
+            <div 
+              className="w-12 h-1 rounded-full mt-2 transition-transform group-hover/side:scale-x-125"
+              style={{ backgroundColor: settings.team_a_color }}
+            />
+          </div>
+
+          {/* Sets tracker - dot selector for easy edit */}
+          <div className="z-10 flex items-center gap-2.5 mb-2 bg-black/30 px-3 py-1.5 rounded-full border border-white/5">
+            <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">Sets</span>
+            <div className="flex gap-1.5">
+              {Array.from({ length: settings.max_sets }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Avoid adding point
+                    setSetsA(i < setsA ? i : i + 1);
+                  }}
+                  className={cn(
+                    "w-4 h-4 rounded-full border-2 transition-all duration-300",
+                    i < setsA 
+                      ? "bg-white border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.7)]" 
+                      : "border-white/20 hover:border-white/40"
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* GIANT SCORE BOX WITH EASY SUBTRACT CONTAINER */}
+          <div className="relative z-10 flex flex-col items-center">
+            {/* Interactive display counter */}
+            <span className="text-[12rem] sm:text-[18rem] md:text-[22rem] lg:text-[26rem] portrait:text-[10rem] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-transform">
+              {scoreA}
+            </span>
+
+            {/* Float Subtract button */}
+            <button
+              onClick={(e) => subtractPoint('A', e)}
+              className="mt-2 px-4 py-2 bg-slate-900/90 border border-white/10 hover:border-red-500/30 hover:bg-slate-800 text-slate-400 hover:text-red-400 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 opacity-80 hover:opacity-100"
+              title="Diminuir Ponto"
+            >
+              <span>- 1 PONTO</span>
+            </button>
+          </div>
+        </div>
+
+        {/* CENTER DIVIDER GRID & TIMED CRONÔMETRO CONTAINER */}
+        <div className={cn(
+          "relative bg-white/5 flex items-center justify-center z-30",
+          "portrait:h-0.5 portrait:w-full landscape:w-0.5 landscape:h-full"
+        )}>
+          {/* Centered stopwatch layout bubble */}
+          <div className="absolute transform -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2 flex flex-col items-center z-30">
+            <div className="bg-slate-900 border border-white/10 p-3 sm:p-4 rounded-2xl shadow-2xl flex flex-col items-center gap-1 min-w-[130px] sm:min-w-[160px] backdrop-blur-md">
+              <span className="text-[9px] uppercase tracking-widest font-black text-slate-500">Cronômetro</span>
+              
+              <button 
+                onClick={toggleTimer}
+                className={cn(
+                  "text-2xl sm:text-3xl font-mono font-black tabular-nums transition-colors tracking-tight focus:outline-none flex items-center justify-center gap-1",
+                  isActive ? "text-orange-500 animate-pulse" : "text-slate-300 hover:text-white"
+                )}
+              >
+                {formatTime(seconds)}
+              </button>
+
+              <div className="flex gap-2.5 mt-1 border-t border-white/5 pt-1.5 w-full justify-center">
+                <button 
+                  onClick={toggleTimer}
+                  className={cn(
+                    "p-1.5 rounded-lg text-white hover:opacity-90 active:scale-90 transition-transform",
+                    isActive ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"
+                  )}
+                  title={isActive ? "Pausar" : "Iniciar"}
+                >
+                  {isActive ? <Pause size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
+                </button>
+                <button 
+                  onClick={resetTimer}
+                  className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white active:scale-90 transition-transform"
+                  title="Reiniciar Cronômetro"
+                >
+                  <RotateCcw size={10} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* TEAM B PANEL */}
+        <div 
+          onClick={() => addPoint('B')}
+          className="relative flex-1 flex flex-col items-center justify-center p-6 select-none cursor-pointer group/side transition-all overflow-hidden"
+        >
+          {/* Subtle color highlight background glow */}
+          <div 
+            className="absolute inset-0 opacity-[0.12] group-hover/side:opacity-[0.18] transition-opacity duration-300 pointer-events-none"
+            style={{ backgroundColor: settings.team_b_color }}
+          />
+
+          {/* Team Name Header with accent border line */}
+          <div className="z-10 flex flex-col items-center mb-4 transition-all">
+            <span 
+              className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-white drop-shadow-md text-center max-w-[280px] truncate"
+              style={{ textShadow: `0 4px 12px ${settings.team_b_color}20` }}
+            >
+              {settings.team_b_name}
+            </span>
+            <div 
+              className="w-12 h-1 rounded-full mt-2 transition-transform group-hover/side:scale-x-125"
+              style={{ backgroundColor: settings.team_b_color }}
+            />
+          </div>
+
+          {/* Sets tracker - dot selector for easy edit */}
+          <div className="z-10 flex items-center gap-2.5 mb-2 bg-black/30 px-3 py-1.5 rounded-full border border-white/5">
+            <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">Sets</span>
+            <div className="flex gap-1.5">
+              {Array.from({ length: settings.max_sets }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Avoid adding point
+                    setSetsB(i < setsB ? i : i + 1);
+                  }}
+                  className={cn(
+                    "w-4 h-4 rounded-full border-2 transition-all duration-300",
+                    i < setsB 
+                      ? "bg-white border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.7)]" 
+                      : "border-white/20 hover:border-white/40"
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* GIANT SCORE BOX WITH EASY SUBTRACT CONTAINER */}
+          <div className="relative z-10 flex flex-col items-center">
+            {/* Interactive display counter */}
+            <span className="text-[12rem] sm:text-[18rem] md:text-[22rem] lg:text-[26rem] portrait:text-[10rem] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-transform">
+              {scoreB}
+            </span>
+
+            {/* Float Subtract button */}
+            <button
+              onClick={(e) => subtractPoint('B', e)}
+              className="mt-2 px-4 py-2 bg-slate-900/90 border border-white/10 hover:border-red-500/30 hover:bg-slate-800 text-slate-400 hover:text-red-400 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 opacity-80 hover:opacity-100"
+              title="Diminuir Ponto"
+            >
+              <span>- 1 PONTO</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* 3. BARRA DE CONTROLES DO JOGO (BOTTOM ACTION BAR) */}
+      <div className="bg-slate-900/90 border-t border-white/10 py-4 px-6 z-40 select-none flex items-center justify-between gap-4">
+        
+        {/* Left grouping */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={undoPoint}
+            disabled={history.length === 0}
+            className={cn(
+              "p-3 rounded-2xl border transition-all active:scale-90",
+              history.length === 0
+                ? "bg-slate-850 border-white/5 text-slate-600 cursor-not-allowed"
+                : "bg-white/5 border-white/10 hover:bg-white/10 text-slate-200"
+            )}
+            title="Desfazer último ponto"
+          >
+            <Undo2 size={18} />
+          </button>
+
+          <button 
+            onClick={() => setIsSwapped(!isSwapped)}
+            className="p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-200 transition-all active:scale-90"
+            title="Inverter lados da quadra"
+          >
+            <RefreshCw size={18} />
+          </button>
+        </div>
+
+        {/* Center Main Action */}
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={saveMatch}
+            disabled={isSaving}
+            className={cn(
+              "px-6 py-3 font-black uppercase tracking-wider rounded-2xl shadow-xl transition-all active:scale-95 flex items-center gap-2 text-xs",
+              isSaving 
+                ? "bg-slate-800 text-slate-500" 
+                : "bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 shadow-orange-500/10 text-white"
+            )}
+          >
+            <Save size={16} />
+            <span>Finalizar Jogo</span>
+          </button>
+        </div>
+
+        {/* Right Reset Grouping */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={resetSet}
+            className="px-3.5 py-3 text-xs font-bold bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 rounded-2xl active:scale-90 transition-all"
+            title="Resetar placar do Set atual"
+          >
+            LIMPAR SET
+          </button>
+
+          <button 
+            onClick={resetGame}
+            className="p-3 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/10 active:scale-90 transition-all"
+            title="Zeramento total do jogo"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+      </div>
+
+      {/* 4. SAVED MATCH POPUP/TOAST */}
       <AnimatePresence>
         {showSavedToast && (
           <motion.div
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-2xl font-bold shadow-xl flex items-center gap-2"
+            className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-white px-5 py-3 rounded-2xl font-bold shadow-2xl flex items-center gap-2.5"
           >
-            <Save size={20} />
-            Partida Salva!
+            <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
+              ✓
+            </div>
+            <span>Partida salva no histórico!</span>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Escalacao Modal */}
-      <AnimatePresence>
-        {showEscalacao && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ y: 100 }}
-              animate={{ y: 0 }}
-              exit={{ y: 100 }}
-              className="bg-slate-900 w-full max-w-lg rounded-t-[2rem] sm:rounded-[2rem] border border-white/10 overflow-hidden flex flex-col max-h-[80vh]"
-            >
-              <div className="p-6 border-b border-white/5 flex items-center justify-between bg-slate-900/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
-                    <Users size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">Escalação</h3>
-                    <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Defina quem está em quadra</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowEscalacao(false)} className="p-2 hover:bg-white/5 rounded-full text-slate-400">
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="flex border-b border-white/5">
-                <button 
-                  onClick={() => setSelectingTeam('A')}
-                  className={cn(
-                    "flex-1 py-4 font-bold transition-all border-b-2",
-                    selectingTeam === 'A' ? "text-orange-500 border-orange-500 bg-orange-500/5" : "text-slate-500 border-transparent"
-                  )}
-                >
-                  {settings.team_a_name} ({teamAPlayers.length})
-                </button>
-                <button 
-                  onClick={() => setSelectingTeam('B')}
-                  className={cn(
-                    "flex-1 py-4 font-bold transition-all border-b-2",
-                    selectingTeam === 'B' ? "text-orange-500 border-orange-500 bg-orange-500/5" : "text-slate-500 border-transparent"
-                  )}
-                >
-                  {settings.team_b_name} ({teamBPlayers.length})
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 gap-2 custom-scrollbar">
-                {players.map(player => {
-                  const isInA = teamAPlayers.includes(player.id);
-                  const isInB = teamBPlayers.includes(player.id);
-                  const isSelected = selectingTeam === 'A' ? isInA : isInB;
-                  const isInOther = selectingTeam === 'A' ? isInB : isInA;
-
-                  return (
-                    <button
-                      key={player.id}
-                      onClick={() => togglePlayerInTeam(player.id, selectingTeam!)}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-2xl border transition-all text-left",
-                        isSelected 
-                          ? "bg-orange-500 border-orange-400 shadow-lg shadow-orange-500/20" 
-                          : isInOther
-                          ? "bg-slate-800/30 border-white/5 opacity-30 grayscale cursor-not-allowed"
-                          : "bg-slate-800/50 border-white/5 hover:border-white/20"
-                      )}
-                      disabled={isInOther}
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-slate-700 overflow-hidden flex-shrink-0 border border-white/10">
-                        {player.photo_url ? (
-                          <img src={player.photo_url} alt={player.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center font-bold text-white/40">
-                            {player.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <span className={cn(
-                        "font-bold text-sm truncate",
-                        isSelected ? "text-white" : "text-slate-300"
-                      )}>
-                        {player.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="p-6 bg-slate-900/80 border-t border-white/5">
-                <button 
-                  onClick={() => setShowEscalacao(false)}
-                  className="w-full bg-white text-slate-950 font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all"
-                >
-                  CONFIRMAR ESCALAÇÃO
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Controls Bar */}
-      <div className={cn(
-        "bg-slate-900/80 backdrop-blur-xl border-t border-white/10 flex items-center justify-center gap-4 md:gap-8 px-6 z-30 transition-all",
-        "portrait:h-24 landscape:h-20"
-      )}>
-        <button 
-          onClick={undoPoint}
-          className="p-3 sm:p-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-all active:scale-90"
-          title="Desfazer ponto"
-        >
-          <Undo2 size={20} className="sm:w-6 sm:h-6" />
-        </button>
-
-        <button 
-          onClick={() => setIsSwapped(!isSwapped)}
-          className="p-3 sm:p-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-all active:scale-90"
-          title="Inverter lados"
-        >
-          <RefreshCw size={20} className="sm:w-6 sm:h-6" />
-        </button>
-
-        <button 
-          onClick={toggleTimer}
-          className={cn(
-            "p-4 sm:p-6 rounded-3xl transition-all active:scale-95 shadow-lg",
-            isActive ? "bg-red-500 text-white shadow-red-500/20" : "bg-green-500 text-white shadow-green-500/20"
-          )}
-        >
-          {isActive ? <Pause size={28} className="sm:w-8 sm:h-8" fill="currentColor" /> : <Play size={28} className="sm:w-8 sm:h-8" fill="currentColor" />}
-        </button>
-
-        <button 
-          onClick={saveMatch}
-          disabled={isSaving}
-          className={cn(
-            "p-4 rounded-2xl transition-all active:scale-90 flex items-center gap-2",
-            isSaving ? "bg-slate-700 text-slate-500" : "bg-orange-500/20 text-orange-500 hover:bg-orange-500/30"
-          )}
-          title="Salvar Partida"
-        >
-          <Save size={24} />
-          <span className="hidden md:inline font-bold">Finalizar Jogo</span>
-        </button>
-
-        <button 
-          onClick={resetSet}
-          className="p-3 sm:p-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-all active:scale-90"
-          title="Resetar Set"
-        >
-          <RotateCcw size={20} className="sm:w-6 sm:h-6" />
-        </button>
-
-        <button 
-          onClick={resetGame}
-          className="p-3 sm:p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-all active:scale-90"
-          title="Resetar Jogo"
-        >
-          <X size={20} className="sm:w-6 sm:h-6" />
-        </button>
-      </div>
     </div>
   );
 };

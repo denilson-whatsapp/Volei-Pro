@@ -109,7 +109,7 @@ export default function App() {
   const renderView = () => {
     switch (currentView) {
       case 'scoreboard':
-        return <Scoreboard settings={settings} groupId={groupId} players={players} onSaveMatch={addMatch} />;
+        return <Scoreboard settings={settings} groupId={groupId} players={players} onSaveMatch={addMatch} onUpdateSettings={updateSettings} />;
       case 'settings':
         return <SettingsPage settings={settings} onUpdate={updateSettings} onRefresh={handleRefreshAll} />;
       case 'players':
@@ -121,7 +121,7 @@ export default function App() {
       case 'ranking':
         return <Ranking players={players} matches={matches} />;
       default:
-        return <Scoreboard settings={settings} groupId={groupId} onSaveMatch={addMatch} />;
+        return <Scoreboard settings={settings} groupId={groupId} onSaveMatch={addMatch} onUpdateSettings={updateSettings} />;
     }
   };
 
