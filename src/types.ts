@@ -33,6 +33,7 @@ export interface Settings {
   team_b_name: string;
   enable_sounds: boolean;
   enable_voice: boolean;
+  require_two_point_lead?: boolean;
 }
 
 export interface Draw {

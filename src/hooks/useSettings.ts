@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS: Settings = {
   team_b_name: 'Time B',
   enable_sounds: true,
   enable_voice: true,
+  require_two_point_lead: true,
 };
 
 export function useSettings(groupId: string | null) {

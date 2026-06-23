@@ -194,8 +194,44 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     resetGame();
   };
 
+  // Reactive set/match finish detection
+  const requireLead = settings.require_two_point_lead !== false;
+  const diff = Math.abs(scoreA - scoreB);
+  const target = settings.points_per_set;
+
+  const isSetEnded = (scoreA >= target || scoreB >= target) && (!requireLead || diff >= 2);
+  const setWinner = isSetEnded ? (scoreA > scoreB ? 'A' : 'B') : null;
+
+  const isMatchEnded = setWinner === 'A' 
+    ? (setsA + 1 >= setsToWin) 
+    : setWinner === 'B' 
+      ? (setsB + 1 >= setsToWin) 
+      : false;
+
+  const lastAnnouncedSetRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (isSetEnded && setWinner) {
+      const announcementKey = `${scoreA}-${scoreB}-${setsA}-${setsB}`;
+      if (lastAnnouncedSetRef.current !== announcementKey) {
+        lastAnnouncedSetRef.current = announcementKey;
+        playSound('whistle');
+        setIsActive(false);
+
+        const winnerName = setWinner === 'A' ? settings.team_a_name : settings.team_b_name;
+        if (isMatchEnded) {
+          speak(`Fim de jogo! Vitória da equipe ${winnerName}`);
+        } else {
+          speak(`Fim do set! Vitória da equipe ${winnerName}`);
+        }
+      }
+    } else if (!isSetEnded) {
+      lastAnnouncedSetRef.current = null;
+    }
+  }, [isSetEnded, setWinner, isMatchEnded, scoreA, scoreB, setsA, setsB, settings.team_a_name, settings.team_b_name]);
+
   const addPoint = (team: 'A' | 'B') => {
-    if (isMatchOver) return;
+    if (isMatchOver || isSetEnded) return;
     if (!isActive) toggleTimer();
     setHistory([...history, { a: scoreA, b: scoreB }]);
     
@@ -204,13 +240,11 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
       setScoreA(newScore);
       playSound('beep');
       speak(`${newScore} a ${scoreB}`);
-      checkSetWinner(newScore, scoreB, 'A');
     } else {
       const newScore = scoreB + 1;
       setScoreB(newScore);
       playSound('beep');
       speak(`${scoreA} a ${newScore}`);
-      checkSetWinner(scoreA, newScore, 'B');
     }
   };
 
@@ -224,48 +258,21 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     }
   };
 
-  const checkSetWinner = (sA: number, sB: number, lastScorer: 'A' | 'B') => {
-    const target = settings.points_per_set;
-    const diff = Math.abs(sA - sB);
-
-    if ((sA >= target || sB >= target) && diff >= 2) {
-      playSound('whistle');
-      let gameEnded = false;
-      const setsToWin = Math.ceil(settings.max_sets / 2);
-
-      if (lastScorer === 'A') {
-        const newSets = setsA + 1;
-        setSetsA(newSets);
-        if (newSets >= setsToWin) {
-          speak(`Fim de jogo! Vitória do ${settings.team_a_name}`);
-          gameEnded = true;
-        } else {
-          speak(`Fim de set para ${settings.team_a_name}`);
-        }
-      } else {
-        const newSets = setsB + 1;
-        setSetsB(newSets);
-        if (newSets >= setsToWin) {
-          speak(`Fim de jogo! Vitória do ${settings.team_b_name}`);
-          gameEnded = true;
-        } else {
-          speak(`Fim de set para ${settings.team_b_name}`);
-        }
-      }
-      
-      if (gameEnded) {
-        setIsActive(false);
-      } else {
-        resetSet();
-      }
-    }
-  };
-
   const resetSet = () => {
     setScoreA(0);
     setScoreB(0);
     setHistory([]);
     resetTimer();
+  };
+
+  const advanceSet = () => {
+    if (!isSetEnded || !setWinner) return;
+    if (setWinner === 'A') {
+      setSetsA(prev => prev + 1);
+    } else {
+      setSetsB(prev => prev + 1);
+    }
+    resetSet();
   };
 
   const undoPoint = () => {
@@ -283,6 +290,66 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     setSetsB(0);
     setHistory([]);
     resetTimer();
+  };
+
+  const saveMatchWithFinalSets = async (finalWinner: 'A' | 'B') => {
+    if (isSaving) return;
+    setIsSaving(true);
+    
+    const finalSetsA = finalWinner === 'A' ? setsA + 1 : setsA;
+    const finalSetsB = finalWinner === 'B' ? setsB + 1 : setsB;
+    const winnerTeam = finalWinner;
+    
+    const matchData: Match = {
+      id: generateId(),
+      team_a_score: scoreA,
+      team_b_score: scoreB,
+      sets_a: finalSetsA,
+      sets_b: finalSetsB,
+      team_a_players: teamAPlayers,
+      team_b_players: teamBPlayers,
+      winner_team: winnerTeam,
+      created_at: new Date().toISOString()
+    };
+
+    // Update individual player stats if players exist
+    if (groupId) {
+      const allMatchPlayers = [...new Set([...teamAPlayers, ...teamBPlayers])];
+      for (const playerId of allMatchPlayers) {
+        const isTeamA = teamAPlayers.includes(playerId);
+        const isWinner = (isTeamA && winnerTeam === 'A') || (!isTeamA && winnerTeam === 'B');
+        const isLoser = (isTeamA && winnerTeam === 'B') || (!isTeamA && winnerTeam === 'A');
+        
+        const stats = {
+          wins: isWinner ? 1 : 0,
+          losses: isLoser ? 1 : 0,
+          games_played: 1,
+          sets_won: isTeamA ? finalSetsA : finalSetsB,
+          sets_lost: isTeamA ? finalSetsB : finalSetsA
+        };
+        
+        SyncManager.addToQueue({ 
+          type: 'player_stats', 
+          groupId, 
+          data: { playerId, stats } 
+        });
+        dbUpdatePlayerStats(playerId, stats);
+      }
+    }
+
+    onSaveMatch(matchData);
+    setIsSaving(false);
+    setShowSavedToast(true);
+    setTimeout(() => setShowSavedToast(false), 3000);
+    resetGame();
+  };
+
+  const handleFinalizeMatchFromModal = () => {
+    if (setWinner) {
+      saveMatchWithFinalSets(setWinner);
+    } else {
+      saveMatch();
+    }
   };
 
   return (
@@ -332,6 +399,21 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               {settings.max_sets} {settings.max_sets === 1 ? 'Set' : 'Sets'}
             </button>
           </div>
+
+          {/* Quick Advantage lead selector */}
+          <button
+            onClick={() => onUpdateSettings?.({ require_two_point_lead: settings.require_two_point_lead === false ? true : false })}
+            className={cn(
+              "px-2.5 py-1 border rounded-xl text-xs font-medium transition-all active:scale-95 flex items-center gap-1",
+              settings.require_two_point_lead !== false
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20"
+                : "bg-slate-800 border-white/5 text-slate-400 hover:text-slate-300"
+            )}
+            title="Exigir diferença de 2 pontos para vencer o set"
+          >
+            <span className="opacity-70">Vantagem (2 pts):</span>
+            <span className="font-bold">{settings.require_two_point_lead !== false ? 'SIM' : 'NÃO'}</span>
+          </button>
 
           {/* Sound Effect Toggle */}
           <button
@@ -661,6 +743,123 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               ✓
             </div>
             <span>Partida salva no histórico!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 5. FINISH SET/MATCH POPUP MODAL */}
+      <AnimatePresence>
+        {isSetEnded && setWinner && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md select-none"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-lg bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center space-y-6 relative overflow-hidden"
+            >
+              {/* Subtle background glow effect */}
+              <div 
+                className="absolute -top-24 -left-24 w-48 h-48 rounded-full opacity-[0.15] blur-3xl pointer-events-none"
+                style={{ backgroundColor: setWinner === 'A' ? settings.team_a_color : settings.team_b_color }}
+              />
+              <div 
+                className="absolute -bottom-24 -right-24 w-48 h-48 rounded-full opacity-[0.15] blur-3xl pointer-events-none"
+                style={{ backgroundColor: setWinner === 'A' ? settings.team_a_color : settings.team_b_color }}
+              />
+
+              {/* Icon / Crown */}
+              <div 
+                className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg border border-white/10"
+                style={{ 
+                  backgroundColor: `${setWinner === 'A' ? settings.team_a_color : settings.team_b_color}22`,
+                  color: setWinner === 'A' ? settings.team_a_color : settings.team_b_color
+                }}
+              >
+                🏆
+              </div>
+
+              {/* Title and Wording */}
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-black tracking-widest text-orange-500 bg-orange-500/10 px-3 py-1 rounded-full">
+                  {isMatchEnded ? 'Partida Encerrada' : `Set ${setsA + setsB + 1} Finalizado`}
+                </span>
+                
+                <h2 className="text-3xl font-black text-white tracking-tight">
+                  {isMatchEnded 
+                    ? `fim do jogo vitória da equipe "${setWinner === 'A' ? settings.team_a_name : settings.team_b_name}"`
+                    : `fim do set vitória da equipe "${setWinner === 'A' ? settings.team_a_name : settings.team_b_name}"`
+                  }
+                </h2>
+                
+                <p className="text-sm text-slate-400">
+                  {isMatchEnded 
+                    ? `O jogo chegou ao fim. Vitória de ${setWinner === 'A' ? settings.team_a_name : settings.team_b_name} por ${setWinner === 'A' ? (setsA + 1) : setsA} a ${setWinner === 'B' ? (setsB + 1) : setsB} nos sets!`
+                    : `Placar final do set: ${scoreA} a ${scoreB}.`
+                  }
+                </p>
+              </div>
+
+              {/* Real-time score summary */}
+              <div className="bg-slate-950/50 border border-white/5 rounded-2xl p-4 w-full flex justify-around items-center gap-4">
+                <div className="text-center">
+                  <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: settings.team_a_color }}>{settings.team_a_name}</div>
+                  <div className="text-2xl font-black text-white font-mono">{scoreA}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{setsA} {setsA === 1 ? 'set' : 'sets'} vencidos</div>
+                </div>
+                <div className="text-slate-600 font-bold text-sm">X</div>
+                <div className="text-center">
+                  <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: settings.team_b_color }}>{settings.team_b_name}</div>
+                  <div className="text-2xl font-black text-white font-mono">{scoreB}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{setsB} {setsB === 1 ? 'set' : 'sets'} vencidos</div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="w-full flex flex-col gap-3 pt-2">
+                {isMatchEnded ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleFinalizeMatchFromModal}
+                      disabled={isSaving}
+                      className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-800 disabled:opacity-50 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/10 flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                    >
+                      <span>Salvar Partida no Histórico</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={resetGame}
+                      className="w-full py-3 bg-white/5 hover:bg-white/10 text-slate-200 font-bold rounded-2xl border border-white/10 transition-all active:scale-95 cursor-pointer"
+                    >
+                      Zerar e Iniciar Novo Jogo
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={advanceSet}
+                    className="w-full py-4 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-bold rounded-2xl shadow-lg shadow-orange-500/10 transition-all active:scale-95 cursor-pointer"
+                  >
+                    Confirmar e Ir para o Próximo Set
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={undoPoint}
+                  className="w-full py-2.5 bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Undo2 size={14} />
+                  <span>Desfazer Último Ponto (Corrigir Erro)</span>
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

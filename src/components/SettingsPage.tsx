@@ -69,6 +69,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdate, 
               </select>
             </div>
           </div>
+
+          <div className="pt-2 border-t border-white/5">
+            <label className="flex items-center justify-between p-4 bg-slate-800/40 rounded-2xl border border-white/5 cursor-pointer hover:bg-slate-800/60 transition-colors">
+              <div>
+                <p className="font-medium text-white">Vantagem de 2 pontos</p>
+                <p className="text-xs text-slate-500">O set só termina quando uma equipe abrir 2 pontos de diferença</p>
+              </div>
+              <input 
+                type="checkbox" 
+                checked={formData.require_two_point_lead !== false}
+                onChange={e => setFormData({ ...formData, require_two_point_lead: e.target.checked })}
+                className="w-6 h-6 accent-orange-500 rounded-lg"
+              />
+            </label>
+          </div>
         </section>
 
         <section className="bg-slate-900/50 border border-white/10 rounded-3xl p-6 space-y-6">
