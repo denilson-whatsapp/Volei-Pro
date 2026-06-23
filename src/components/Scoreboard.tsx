@@ -366,15 +366,18 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
 
       {/* 2. PLACAR AREA (GIANT INTERACTIVE SPLIT SCORE LAYOUT) */}
       <div className={cn(
-        "flex-1 min-h-0 flex overflow-hidden transition-all duration-500",
-        isSwapped ? "flex-row-reverse" : "flex-row",
-        "portrait:flex-col landscape:flex-row"
+        "flex-1 min-h-0 relative transition-all duration-500 overflow-hidden",
+        // CSS Grid ensures perfect alignment and absolute block-level symmetry!
+        "landscape:grid landscape:grid-cols-[1fr_auto_1fr] portrait:grid portrait:grid-rows-[1fr_auto_1fr]"
       )}>
         
         {/* TEAM A PANEL */}
         <div 
           onClick={() => addPoint('A')}
-          className="relative flex-1 flex flex-col items-center justify-center p-6 select-none cursor-pointer group/side transition-all overflow-hidden"
+          className={cn(
+            "relative flex flex-col items-center justify-center p-4 select-none cursor-pointer group/side transition-all min-h-0 min-w-0 border-transparent",
+            isSwapped ? "order-3" : "order-1"
+          )}
         >
           {/* Subtle color highlight background glow */}
           <div 
@@ -382,54 +385,66 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             style={{ backgroundColor: settings.team_a_color }}
           />
 
-          {/* Team Name Header with accent border line */}
-          <div className="z-10 flex flex-col items-center mb-4 transition-all">
-            <span 
-              className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-white drop-shadow-md text-center max-w-[280px] truncate"
-              style={{ textShadow: `0 4px 12px ${settings.team_a_color}20` }}
-            >
-              {settings.team_a_name}
-            </span>
-            <div 
-              className="w-12 h-1 rounded-full mt-2 transition-transform group-hover/side:scale-x-125"
-              style={{ backgroundColor: settings.team_a_color }}
-            />
-          </div>
-
-          {/* Sets tracker - dot selector for easy edit */}
-          <div className="z-10 flex items-center gap-2.5 mb-2 bg-black/30 px-3 py-1.5 rounded-full border border-white/5">
-            <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">Sets</span>
-            <div className="flex gap-1.5">
-              {Array.from({ length: settings.max_sets }).map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation(); // Avoid adding point
-                    setSetsA(i < setsA ? i : i + 1);
-                  }}
-                  className={cn(
-                    "w-4 h-4 rounded-full border-2 transition-all duration-300",
-                    i < setsA 
-                      ? "bg-white border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.7)]" 
-                      : "border-white/20 hover:border-white/40"
-                  )}
-                />
-              ))}
+          {/* Extremidade Lateral para Nome (Time A) */}
+          <div className={cn(
+            "z-20 flex select-none items-center",
+            // Em computadores/paisagem, fica vertical na lateral extrema esquerda
+            "landscape:absolute landscape:left-3 landscape:top-1/2 landscape:-translate-y-1/2 landscape:flex-col landscape:pointer-events-auto",
+            // Em celulares/retrato, fica horizontal no topo
+            "portrait:absolute portrait:top-3 portrait:left-1/2 portrait:-translate-x-1/2 portrait:flex-col portrait:pointer-events-none"
+          )}>
+            {/* Team Name - rotacionado em modo paisagem */}
+            <div className="flex flex-col items-center transition-all landscape:-rotate-90 landscape:origin-center landscape:my-8">
+              <span 
+                className="text-sm xs:text-base sm:text-xl md:text-2xl lg:text-3xl font-black uppercase tracking-widest text-white drop-shadow-md text-center max-w-[160px] xs:max-w-[200px] sm:max-w-[240px] truncate"
+                style={{ textShadow: `0 4px 12px ${settings.team_a_color}30` }}
+              >
+                {settings.team_a_name}
+              </span>
+              <div 
+                className="w-12 h-1 rounded-full mt-1 transition-transform group-hover/side:scale-x-125"
+                style={{ backgroundColor: settings.team_a_color }}
+              />
             </div>
           </div>
 
-          {/* GIANT SCORE BOX WITH EASY SUBTRACT CONTAINER */}
-          <div className="relative z-10 flex flex-col items-center">
-            {/* Interactive display counter */}
-            <span className="text-[12rem] sm:text-[18rem] md:text-[22rem] lg:text-[26rem] portrait:text-[10rem] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-transform">
+          {/* GIANT SCORE BOX WITH EASY SUBTRACT CONTAINER & SETS */}
+          <div className="relative z-10 flex flex-col items-center justify-center">
+            {/* Interactive display counter - Utiliza vh/vw para ser 100% responsivo e não quebrar em telas restritas */}
+            <span className="text-[25vw] xs:text-[23vw] portrait:text-[13vh] landscape:text-[22vh] sm:text-[14rem] md:text-[18rem] lg:text-[22rem] xl:text-[26rem] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-all">
               {scoreA}
             </span>
+
+            {/* Sets tracker - Novo posicionamento diretamente abaixo do placar */}
+            <div 
+              onClick={(e) => e.stopPropagation()} // Evita adicionar ponto ao clicar nas bolinhas de set
+              className="mt-1 mb-2 xs:mt-2 xs:mb-3 flex items-center gap-2 bg-black/60 px-2.5 py-1 xs:px-3 xs:py-1.5 rounded-full border border-white/5 backdrop-blur-sm shadow-lg pointer-events-auto hover:bg-black/75 transition-colors"
+            >
+              <span className="text-[8px] xs:text-[9px] uppercase font-black tracking-widest text-slate-400">Sets</span>
+              <div className="flex flex-row gap-1">
+                {Array.from({ length: settings.max_sets }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Evita adicionar ponto
+                      setSetsA(i < setsA ? i : i + 1);
+                    }}
+                    className={cn(
+                      "w-3 h-3 xs:w-3.5 xs:h-3.5 rounded-full border-2 transition-all duration-300",
+                      i < setsA 
+                        ? "bg-white border-white scale-110 shadow-[0_0_8px_rgba(255,255,255,0.7)]" 
+                        : "border-white/20 hover:border-white/40"
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
 
             {/* Float Subtract button */}
             <button
               onClick={(e) => subtractPoint('A', e)}
-              className="mt-2 px-4 py-2 bg-slate-900/90 border border-white/10 hover:border-red-500/30 hover:bg-slate-800 text-slate-400 hover:text-red-400 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 opacity-80 hover:opacity-100"
+              className="mt-1 px-3 py-1 bg-slate-900/95 border border-white/10 hover:border-red-500/30 hover:bg-slate-800 text-slate-400 hover:text-red-400 text-[10px] xs:text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 opacity-85 hover:opacity-100 backdrop-blur-sm pointer-events-auto"
               title="Diminuir Ponto"
             >
               <span>- 1 PONTO</span>
@@ -439,29 +454,29 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
 
         {/* CENTER DIVIDER GRID & TIMED CRONÔMETRO CONTAINER */}
         <div className={cn(
-          "relative bg-white/5 flex items-center justify-center z-30",
+          "order-2 relative bg-white/10 flex items-center justify-center z-30",
           "portrait:h-0.5 portrait:w-full landscape:w-0.5 landscape:h-full"
         )}>
           {/* Centered stopwatch layout bubble */}
           <div className="absolute transform -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2 flex flex-col items-center z-30">
-            <div className="bg-slate-900 border border-white/10 p-3 sm:p-4 rounded-2xl shadow-2xl flex flex-col items-center gap-1 min-w-[130px] sm:min-w-[160px] backdrop-blur-md">
-              <span className="text-[9px] uppercase tracking-widest font-black text-slate-500">Cronômetro</span>
+            <div className="bg-slate-900 border border-white/10 p-2 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xl flex flex-col items-center gap-0.5 sm:gap-1 min-w-[100px] sm:min-w-[160px] backdrop-blur-md">
+              <span className="text-[8px] sm:text-[9px] uppercase tracking-widest font-black text-slate-500">Cronômetro</span>
               
               <button 
                 onClick={toggleTimer}
                 className={cn(
-                  "text-2xl sm:text-3xl font-mono font-black tabular-nums transition-colors tracking-tight focus:outline-none flex items-center justify-center gap-1",
+                  "text-xl sm:text-3xl font-mono font-black tabular-nums transition-colors tracking-tight focus:outline-none flex items-center justify-center gap-1",
                   isActive ? "text-orange-500 animate-pulse" : "text-slate-300 hover:text-white"
                 )}
               >
                 {formatTime(seconds)}
               </button>
 
-              <div className="flex gap-2.5 mt-1 border-t border-white/5 pt-1.5 w-full justify-center">
+              <div className="flex gap-2.5 mt-1 border-t border-white/5 pt-1 sm:pt-1.5 w-full justify-center">
                 <button 
                   onClick={toggleTimer}
                   className={cn(
-                    "p-1.5 rounded-lg text-white hover:opacity-90 active:scale-90 transition-transform",
+                    "p-1 sm:p-1.5 rounded-lg text-white hover:opacity-90 active:scale-90 transition-transform",
                     isActive ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"
                   )}
                   title={isActive ? "Pausar" : "Iniciar"}
@@ -470,7 +485,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
                 </button>
                 <button 
                   onClick={resetTimer}
-                  className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white active:scale-90 transition-transform"
+                  className="p-1 sm:p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white active:scale-90 transition-transform"
                   title="Reiniciar Cronômetro"
                 >
                   <RotateCcw size={10} />
@@ -483,7 +498,10 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
         {/* TEAM B PANEL */}
         <div 
           onClick={() => addPoint('B')}
-          className="relative flex-1 flex flex-col items-center justify-center p-6 select-none cursor-pointer group/side transition-all overflow-hidden"
+          className={cn(
+            "relative flex flex-col items-center justify-center p-4 select-none cursor-pointer group/side transition-all min-h-0 min-w-0 border-transparent",
+            isSwapped ? "order-1" : "order-3"
+          )}
         >
           {/* Subtle color highlight background glow */}
           <div 
@@ -491,54 +509,66 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             style={{ backgroundColor: settings.team_b_color }}
           />
 
-          {/* Team Name Header with accent border line */}
-          <div className="z-10 flex flex-col items-center mb-4 transition-all">
-            <span 
-              className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-tighter text-white drop-shadow-md text-center max-w-[280px] truncate"
-              style={{ textShadow: `0 4px 12px ${settings.team_b_color}20` }}
-            >
-              {settings.team_b_name}
-            </span>
-            <div 
-              className="w-12 h-1 rounded-full mt-2 transition-transform group-hover/side:scale-x-125"
-              style={{ backgroundColor: settings.team_b_color }}
-            />
-          </div>
-
-          {/* Sets tracker - dot selector for easy edit */}
-          <div className="z-10 flex items-center gap-2.5 mb-2 bg-black/30 px-3 py-1.5 rounded-full border border-white/5">
-            <span className="text-[10px] uppercase font-black tracking-widest text-slate-500">Sets</span>
-            <div className="flex gap-1.5">
-              {Array.from({ length: settings.max_sets }).map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation(); // Avoid adding point
-                    setSetsB(i < setsB ? i : i + 1);
-                  }}
-                  className={cn(
-                    "w-4 h-4 rounded-full border-2 transition-all duration-300",
-                    i < setsB 
-                      ? "bg-white border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.7)]" 
-                      : "border-white/20 hover:border-white/40"
-                  )}
-                />
-              ))}
+          {/* Extremidade Lateral para Nome (Time B) */}
+          <div className={cn(
+            "z-20 flex select-none items-center",
+            // Em computadores/paisagem, fica vertical na lateral extrema direita
+            "landscape:absolute landscape:right-3 landscape:top-1/2 landscape:-translate-y-1/2 landscape:flex-col landscape:pointer-events-auto",
+            // Em celulares/retrato, fica horizontal na base
+            "portrait:absolute portrait:bottom-3 portrait:left-1/2 portrait:-translate-x-1/2 portrait:flex-col-reverse portrait:pointer-events-none"
+          )}>
+            {/* Team Name - rotacionado de forma idêntica em modo paisagem para perfeita simetria e leitura de baixo para cima */}
+            <div className="flex flex-col items-center transition-all landscape:-rotate-90 landscape:origin-center landscape:my-8">
+              <span 
+                className="text-sm xs:text-base sm:text-xl md:text-2xl lg:text-3xl font-black uppercase tracking-widest text-white drop-shadow-md text-center max-w-[160px] xs:max-w-[200px] sm:max-w-[240px] truncate"
+                style={{ textShadow: `0 4px 12px ${settings.team_b_color}30` }}
+              >
+                {settings.team_b_name}
+              </span>
+              <div 
+                className="w-12 h-1 rounded-full mt-1 transition-transform group-hover/side:scale-x-125"
+                style={{ backgroundColor: settings.team_b_color }}
+              />
             </div>
           </div>
 
-          {/* GIANT SCORE BOX WITH EASY SUBTRACT CONTAINER */}
-          <div className="relative z-10 flex flex-col items-center">
-            {/* Interactive display counter */}
-            <span className="text-[12rem] sm:text-[18rem] md:text-[22rem] lg:text-[26rem] portrait:text-[10rem] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-transform">
+          {/* GIANT SCORE BOX WITH EASY SUBTRACT CONTAINER & SETS */}
+          <div className="relative z-10 flex flex-col items-center justify-center">
+            {/* Interactive display counter - Utiliza vh/vw para ser 100% responsivo e não quebrar em telas restritas */}
+            <span className="text-[25vw] xs:text-[23vw] portrait:text-[13vh] landscape:text-[22vh] sm:text-[14rem] md:text-[18rem] lg:text-[22rem] xl:text-[26rem] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-all">
               {scoreB}
             </span>
+
+            {/* Sets tracker - Novo posicionamento diretamente abaixo do placar */}
+            <div 
+              onClick={(e) => e.stopPropagation()} // Evita adicionar ponto ao clicar nas bolinhas de set
+              className="mt-1 mb-2 xs:mt-2 xs:mb-3 flex items-center gap-2 bg-black/60 px-2.5 py-1 xs:px-3 xs:py-1.5 rounded-full border border-white/5 backdrop-blur-sm shadow-lg pointer-events-auto hover:bg-black/75 transition-colors"
+            >
+              <span className="text-[8px] xs:text-[9px] uppercase font-black tracking-widest text-slate-400">Sets</span>
+              <div className="flex flex-row gap-1">
+                {Array.from({ length: settings.max_sets }).map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Evita adicionar ponto
+                      setSetsB(i < setsB ? i : i + 1);
+                    }}
+                    className={cn(
+                      "w-3 h-3 xs:w-3.5 xs:h-3.5 rounded-full border-2 transition-all duration-300",
+                      i < setsB 
+                        ? "bg-white border-white scale-110 shadow-[0_0_8px_rgba(255,255,255,0.7)]" 
+                        : "border-white/20 hover:border-white/40"
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
 
             {/* Float Subtract button */}
             <button
               onClick={(e) => subtractPoint('B', e)}
-              className="mt-2 px-4 py-2 bg-slate-900/90 border border-white/10 hover:border-red-500/30 hover:bg-slate-800 text-slate-400 hover:text-red-400 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 opacity-80 hover:opacity-100"
+              className="mt-1 px-3 py-1 bg-slate-900/95 border border-white/10 hover:border-red-500/30 hover:bg-slate-800 text-slate-400 hover:text-red-400 text-[10px] xs:text-xs font-black uppercase tracking-wider rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1 opacity-85 hover:opacity-100 backdrop-blur-sm pointer-events-auto"
               title="Diminuir Ponto"
             >
               <span>- 1 PONTO</span>
