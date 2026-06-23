@@ -96,6 +96,14 @@ CREATE TABLE scoreboard (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 6.5. RETIRAR SEGURANÇA DE LINHA (RLS) PARA ACESSO DIRETO COMPARTILHADO
+-- Garante que o aplicativo web envie e receba dados sem bloqueios de RLS no projeto novo
+ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE players DISABLE ROW LEVEL SECURITY;
+ALTER TABLE matches DISABLE ROW LEVEL SECURITY;
+ALTER TABLE draws DISABLE ROW LEVEL SECURITY;
+ALTER TABLE scoreboard DISABLE ROW LEVEL SECURITY;
+
 -- 7. ATIVAR SUPABASE REALTIME PARA AS TABELAS
 -- Permite que múltiplos telefones e telas vejam as pontuações e quadra mudando ao vivo
 DO $$
