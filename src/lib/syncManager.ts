@@ -8,6 +8,8 @@ import {
   dbDeleteDraw,
   isSupabaseConfigured
 } from './supabase';
+import { generateId } from './utils';
+import { safeLocalStorage } from './safeStorage';
 
 type SyncOperation = {
   id: string;
@@ -22,7 +24,7 @@ const SYNC_QUEUE_KEY = 'voley_sync_queue';
 export const SyncManager = {
   getQueue(): SyncOperation[] {
     try {
-      const queue = localStorage.getItem(SYNC_QUEUE_KEY);
+      const queue = safeLocalStorage.getItem(SYNC_QUEUE_KEY);
       return queue ? JSON.parse(queue) : [];
     } catch (e) {
       return [];
@@ -30,7 +32,11 @@ export const SyncManager = {
   },
 
   saveQueue(queue: SyncOperation[]) {
-    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+    try {
+      safeLocalStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+    } catch (e) {
+      console.warn('SyncManager: Failed to save queue to storage:', e);
+    }
   },
 
   addToQueue(op: Omit<SyncOperation, 'id' | 'timestamp'>) {
@@ -38,10 +44,10 @@ export const SyncManager = {
     // For single-state items like settings or scoreboard, replace existing pending ones for the same group
     if (op.type === 'settings' || op.type === 'scoreboard' || op.type === 'players') {
       const filtered = queue.filter(item => !(item.type === op.type && item.groupId === op.groupId));
-      filtered.push({ ...op, id: crypto.randomUUID(), timestamp: Date.now() });
+      filtered.push({ ...op, id: generateId(), timestamp: Date.now() });
       this.saveQueue(filtered);
     } else {
-      queue.push({ ...op, id: crypto.randomUUID(), timestamp: Date.now() });
+      queue.push({ ...op, id: generateId(), timestamp: Date.now() });
       this.saveQueue(queue);
     }
   },

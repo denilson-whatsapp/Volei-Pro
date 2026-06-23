@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Player, Draw } from '../types';
 import { Trophy, RefreshCw, Save, UserPlus, X, Play } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, generateId } from '../lib/utils';
 import { useSync } from '../hooks/useSync';
 import { dbSaveScoreboard } from '../lib/supabase';
 
@@ -173,7 +173,7 @@ export const ShufflerPage: React.FC<ShufflerPageProps> = ({ players, groupId, on
     if (generatedTeams.length === 0) return;
     
     const drawData: Draw = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       teams: generatedTeams.map(t => t.map(p => p.name)),
       created_at: new Date().toISOString()
     };

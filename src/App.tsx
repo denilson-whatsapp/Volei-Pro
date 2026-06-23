@@ -13,10 +13,11 @@ import { useHistory } from './hooks/useHistory';
 import { View } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { testSupabaseConnection } from './lib/supabase';
+import { safeLocalStorage } from './lib/safeStorage';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('scoreboard');
-  const [groupId, setGroupId] = useState<string | null>(localStorage.getItem('voley_group_id'));
+  const [groupId, setGroupId] = useState<string | null>(safeLocalStorage.getItem('voley_group_id'));
   const [forceLoad, setForceLoad] = useState(false);
   const [supabaseStatus, setSupabaseStatus] = useState<string | null>(null);
 
@@ -57,12 +58,12 @@ export default function App() {
 
   const handleJoin = (id: string) => {
     setGroupId(id);
-    localStorage.setItem('voley_group_id', id);
+    safeLocalStorage.setItem('voley_group_id', id);
   };
 
   const handleLogout = () => {
     setGroupId(null);
-    localStorage.removeItem('voley_group_id');
+    safeLocalStorage.removeItem('voley_group_id');
   };
 
   // Only show loading screen if we have a groupId and at least one hook is still loading

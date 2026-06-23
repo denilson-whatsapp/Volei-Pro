@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import { dbSavePlayers, dbFetchPlayers, isSupabaseConfigured } from '../lib/supabase';
 import { generateId } from '../lib/utils';
 import { SyncManager } from '../lib/syncManager';
+import { safeLocalStorage } from '../lib/safeStorage';
 
 export function usePlayers(groupId: string | null) {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -27,7 +28,7 @@ export function usePlayers(groupId: string | null) {
           hasSynced.current = true;
           setPlayers(newState);
           try {
-            localStorage.setItem('voley_players_' + groupId, JSON.stringify(newState));
+            safeLocalStorage.setItem('voley_players_' + groupId, JSON.stringify(newState));
           } catch (e) {
             console.error('usePlayers: Error saving to localStorage:', e);
           }
@@ -81,7 +82,7 @@ export function usePlayers(groupId: string | null) {
             active: p.active
           }));
           setPlayers(mappedPlayers);
-          localStorage.setItem('voley_players_' + groupId, JSON.stringify(mappedPlayers));
+          safeLocalStorage.setItem('voley_players_' + groupId, JSON.stringify(mappedPlayers));
           setLoading(false);
           return;
         }
@@ -92,7 +93,7 @@ export function usePlayers(groupId: string | null) {
 
     // 2. Fallback to localStorage if Supabase fails or is empty
     try {
-      const local = localStorage.getItem('voley_players_' + groupId);
+      const local = safeLocalStorage.getItem('voley_players_' + groupId);
       if (local) {
         setPlayers(JSON.parse(local));
       }
@@ -108,7 +109,7 @@ export function usePlayers(groupId: string | null) {
     setPlayers(updated);
     if (groupId) {
       try {
-        localStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('usePlayers: Error saving to localStorage:', e);
       }
@@ -122,7 +123,7 @@ export function usePlayers(groupId: string | null) {
     setPlayers(updated);
     if (groupId) {
       try {
-        localStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('usePlayers: Error saving to localStorage:', e);
       }
@@ -136,7 +137,7 @@ export function usePlayers(groupId: string | null) {
     setPlayers(updated);
     if (groupId) {
       try {
-        localStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('usePlayers: Error saving to localStorage:', e);
       }
@@ -150,7 +151,7 @@ export function usePlayers(groupId: string | null) {
     setPlayers(updated);
     if (groupId) {
       try {
-        localStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_players_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('usePlayers: Error saving to localStorage:', e);
       }

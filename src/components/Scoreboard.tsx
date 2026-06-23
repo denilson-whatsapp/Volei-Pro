@@ -4,8 +4,7 @@ import { RotateCcw, Undo2, Play, Pause, RefreshCw, X, Save } from 'lucide-react'
 import { Match, Settings, Player } from '../types';
 import { useTimer } from '../hooks/useTimer';
 import { useSync } from '../hooks/useSync';
-import { formatTime } from '../lib/utils';
-import { cn } from '../lib/utils';
+import { formatTime, cn, generateId } from '../lib/utils';
 import { dbSaveScoreboard, dbUpdatePlayerStats } from '../lib/supabase';
 import { SyncManager } from '../lib/syncManager';
 import { Users, UserPlus, Trophy as TrophyIcon, ChevronDown } from 'lucide-react';
@@ -42,47 +41,56 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
   // Audio helpers
   const playSound = (type: 'beep' | 'whistle') => {
     if (!settings.enable_sounds) return;
-    
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    
-    if (type === 'beep') {
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 0.1);
-    } else {
-      // Whistle sound (Mixkit)
-      const whistle = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
-      whistle.volume = 0.3;
-      whistle.play().catch(e => console.log('Audio play failed:', e));
+    try {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtxClass) return;
+      const audioCtx = new AudioCtxClass();
+      
+      if (type === 'beep') {
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.1);
+      } else {
+        // Whistle sound (Mixkit)
+        const whistle = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+        whistle.volume = 0.3;
+        whistle.play().catch(e => console.log('Audio play failed:', e));
+      }
+    } catch (e) {
+      console.warn('Audio play contextual issue:', e);
     }
   };
 
   const speak = (text: string) => {
     if (!settings.enable_voice) return;
-    
-    // Replace "Time" with "Equipe" to avoid English pronunciation
-    const localizedText = text.replace(/Time/gi, 'Equipe');
-    
-    const utterance = new SpeechSynthesisUtterance(localizedText);
-    utterance.lang = 'pt-BR';
-    utterance.rate = 1.1;
+    try {
+      if (!window.speechSynthesis || !SpeechSynthesisUtterance) return;
+      // Replace "Time" with "Equipe" to avoid English pronunciation
+      const localizedText = text.replace(/Time/gi, 'Equipe');
+      
+      const utterance = new SpeechSynthesisUtterance(localizedText);
+      utterance.lang = 'pt-BR';
+      utterance.rate = 1.1;
 
-    // Try to find a male voice
-    const voices = window.speechSynthesis.getVoices();
-    const maleVoice = voices.find(v => v.lang.startsWith('pt') && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('masculino') || v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('google português do brasil')));
-    
-    if (maleVoice) {
-      utterance.voice = maleVoice;
+      // Try to find a male voice
+      const voices = window.speechSynthesis.getVoices();
+      const maleVoice = voices.find(v => v.lang.startsWith('pt') && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('masculino') || v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('google português do brasil')));
+      
+      if (maleVoice) {
+        utterance.voice = maleVoice;
+      }
+      
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech synthesis not fully supported in this context:', e);
     }
-    
-    window.speechSynthesis.speak(utterance);
   };
 
   // Sync state with the group
@@ -109,7 +117,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ settings, groupId, playe
     const winnerTeam = setsA > setsB ? 'A' : setsB > setsA ? 'B' : null;
     
     const matchData: Match = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       team_a_score: scoreA,
       team_b_score: scoreB,
       sets_a: setsA,

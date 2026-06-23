@@ -3,6 +3,7 @@ import { Match, Draw } from '../types';
 import { io, Socket } from 'socket.io-client';
 import { dbSaveMatch, dbSaveDraw, dbFetchMatches, dbFetchDraws, dbDeleteMatch, dbDeleteDraw, isSupabaseConfigured } from '../lib/supabase';
 import { SyncManager } from '../lib/syncManager';
+import { safeLocalStorage } from '../lib/safeStorage';
 
 export function useHistory(groupId: string | null) {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -30,8 +31,8 @@ export function useHistory(groupId: string | null) {
         if (dbMatches !== null && dbDraws !== null) {
           setMatches(dbMatches);
           setDraws(dbDraws);
-          localStorage.setItem('voley_matches_' + groupId, JSON.stringify(dbMatches));
-          localStorage.setItem('voley_draws_' + groupId, JSON.stringify(dbDraws));
+          safeLocalStorage.setItem('voley_matches_' + groupId, JSON.stringify(dbMatches));
+          safeLocalStorage.setItem('voley_draws_' + groupId, JSON.stringify(dbDraws));
           setLoading(false);
           return;
         }
@@ -42,8 +43,8 @@ export function useHistory(groupId: string | null) {
 
     // 2. Fallback to localStorage
     try {
-      const localMatches = JSON.parse(localStorage.getItem('voley_matches_' + groupId) || '[]');
-      const localDraws = JSON.parse(localStorage.getItem('voley_draws_' + groupId) || '[]');
+      const localMatches = JSON.parse(safeLocalStorage.getItem('voley_matches_' + groupId) || '[]');
+      const localDraws = JSON.parse(safeLocalStorage.getItem('voley_draws_' + groupId) || '[]');
       setMatches(localMatches);
       setDraws(localDraws);
     } catch (e) {
@@ -71,7 +72,7 @@ export function useHistory(groupId: string | null) {
           if (newState.matches) {
             setMatches(newState.matches);
             try {
-              localStorage.setItem('voley_matches_' + groupId, JSON.stringify(newState.matches));
+              safeLocalStorage.setItem('voley_matches_' + groupId, JSON.stringify(newState.matches));
             } catch (e) {
               console.error('useHistory: Error saving matches to localStorage:', e);
             }
@@ -79,7 +80,7 @@ export function useHistory(groupId: string | null) {
           if (newState.draws) {
             setDraws(newState.draws);
             try {
-              localStorage.setItem('voley_draws_' + groupId, JSON.stringify(newState.draws));
+              safeLocalStorage.setItem('voley_draws_' + groupId, JSON.stringify(newState.draws));
             } catch (e) {
               console.error('useHistory: Error saving draws to localStorage:', e);
             }
@@ -127,7 +128,7 @@ export function useHistory(groupId: string | null) {
     setMatches(updated);
     if (groupId) {
       try {
-        localStorage.setItem('voley_matches_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_matches_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('useHistory: Error saving matches to localStorage:', e);
       }
@@ -141,7 +142,7 @@ export function useHistory(groupId: string | null) {
     setMatches(updated);
     if (groupId) {
       try {
-        localStorage.setItem('voley_matches_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_matches_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('useHistory: Error saving matches to localStorage:', e);
       }
@@ -155,7 +156,7 @@ export function useHistory(groupId: string | null) {
     setDraws(updated);
     if (groupId) {
       try {
-        localStorage.setItem('voley_draws_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_draws_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('useHistory: Error saving draws to localStorage:', e);
       }
@@ -169,7 +170,7 @@ export function useHistory(groupId: string | null) {
     setDraws(updated);
     if (groupId) {
       try {
-        localStorage.setItem('voley_draws_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_draws_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('useHistory: Error saving draws to localStorage:', e);
       }

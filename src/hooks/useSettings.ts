@@ -3,6 +3,7 @@ import { Settings } from '../types';
 import { io, Socket } from 'socket.io-client';
 import { dbSaveSettings, dbFetchSettings, isSupabaseConfigured } from '../lib/supabase';
 import { SyncManager } from '../lib/syncManager';
+import { safeLocalStorage } from '../lib/safeStorage';
 
 const DEFAULT_SETTINGS: Settings = {
   points_per_set: 25,
@@ -37,7 +38,7 @@ export function useSettings(groupId: string | null) {
           hasSynced.current = true;
           setSettings(newState);
           try {
-            localStorage.setItem('voley_settings_' + groupId, JSON.stringify(newState));
+            safeLocalStorage.setItem('voley_settings_' + groupId, JSON.stringify(newState));
           } catch (e) {
             console.error('useSettings: Error saving to localStorage:', e);
           }
@@ -86,7 +87,7 @@ export function useSettings(groupId: string | null) {
         const dbData = await dbFetchSettings(groupId);
         if (dbData !== null) {
           setSettings(dbData);
-          localStorage.setItem('voley_settings_' + groupId, JSON.stringify(dbData));
+          safeLocalStorage.setItem('voley_settings_' + groupId, JSON.stringify(dbData));
           setLoading(false);
           return;
         }
@@ -97,7 +98,7 @@ export function useSettings(groupId: string | null) {
 
     // 2. Fallback to localStorage
     try {
-      const local = localStorage.getItem('voley_settings_' + groupId);
+      const local = safeLocalStorage.getItem('voley_settings_' + groupId);
       if (local) {
         setSettings(JSON.parse(local));
       }
@@ -114,7 +115,7 @@ export function useSettings(groupId: string | null) {
     if (groupId) {
       // Save locally
       try {
-        localStorage.setItem('voley_settings_' + groupId, JSON.stringify(updated));
+        safeLocalStorage.setItem('voley_settings_' + groupId, JSON.stringify(updated));
       } catch (e) {
         console.error('useSettings: Error saving to localStorage:', e);
       }
