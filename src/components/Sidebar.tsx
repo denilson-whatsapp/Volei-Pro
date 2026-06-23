@@ -26,39 +26,6 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onLogout }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const [supabaseStatus, setSupabaseStatus] = React.useState<'connected' | 'offline' | 'error'>('offline');
-  const [isDesktop, setIsDesktop] = React.useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.matchMedia('(min-width: 1280px)').matches;
-    }
-    return false;
-  });
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const media = window.matchMedia('(min-width: 1280px)');
-    setIsDesktop(media.matches);
-
-    const listener = (e: MediaQueryListEvent) => {
-      setIsDesktop(e.matches);
-    };
-
-    if (media.addEventListener) {
-      media.addEventListener('change', listener);
-    } else {
-      // @ts-ignore
-      media.addListener(listener);
-    }
-
-    return () => {
-      if (media.removeEventListener) {
-        media.removeEventListener('change', listener);
-      } else {
-        // @ts-ignore
-        media.removeListener(listener);
-      }
-    };
-  }, []);
 
   React.useEffect(() => {
     const checkConnection = async () => {
@@ -114,13 +81,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onL
       </AnimatePresence>
 
       {/* Sidebar Content */}
-      <motion.aside
-        initial={false}
-        animate={{ x: isDesktop ? 0 : (isOpen ? 0 : -300) }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      <aside
         className={cn(
-          "fixed top-0 left-0 h-full w-64 bg-slate-900 text-white z-[70] p-6 flex flex-col shadow-2xl xl:translate-x-0 xl:static",
-          !isOpen && "hidden xl:flex"
+          "fixed top-0 left-0 h-full w-64 bg-slate-900 text-white z-[70] p-6 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out",
+          isOpen ? "translate-x-0" : "-translate-x-full",
+          "xl:static xl:translate-x-0 xl:flex"
         )}
       >
         <div className="flex items-center justify-between mb-10">
@@ -194,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, onL
             v1.0.0
           </p>
         </div>
-      </motion.aside>
+      </aside>
     </>
   );
 };

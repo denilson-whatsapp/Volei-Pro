@@ -57,6 +57,9 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
 
   const { seconds, isActive, toggleTimer, resetTimer, setSeconds, setIsActive } = useTimer();
 
+  const setsToWin = Math.ceil(settings.max_sets / 2);
+  const isMatchOver = setsA >= setsToWin || setsB >= setsToWin;
+
   // Audio & speech helper functions
   const playSound = (type: 'beep' | 'whistle') => {
     if (!settings.enable_sounds) return;
@@ -192,6 +195,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   };
 
   const addPoint = (team: 'A' | 'B') => {
+    if (isMatchOver) return;
     if (!isActive) toggleTimer();
     setHistory([...history, { a: scoreA, b: scoreB }]);
     
@@ -411,7 +415,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
           {/* GIANT SCORE BOX WITH EASY SUBTRACT CONTAINER & SETS */}
           <div className="relative z-10 flex flex-col items-center justify-center">
             {/* Interactive display counter - Utiliza vh/vw para ser 100% responsivo e não quebrar em telas restritas */}
-            <span className="text-[25vw] xs:text-[23vw] portrait:text-[13vh] landscape:text-[22vh] sm:text-[14rem] md:text-[18rem] lg:text-[22rem] xl:text-[26rem] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-all">
+            <span className="text-[25vw] xs:text-[23vw] portrait:text-[14vh] landscape:text-[28vh] sm:text-[16rem] md:text-[20rem] lg:text-[26rem] xl:text-[32rem] md:landscape:text-[28vh] lg:landscape:text-[34vh] xl:landscape:text-[38vh] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-all">
               {scoreA}
             </span>
 
@@ -535,7 +539,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
           {/* GIANT SCORE BOX WITH EASY SUBTRACT CONTAINER & SETS */}
           <div className="relative z-10 flex flex-col items-center justify-center">
             {/* Interactive display counter - Utiliza vh/vw para ser 100% responsivo e não quebrar em telas restritas */}
-            <span className="text-[25vw] xs:text-[23vw] portrait:text-[13vh] landscape:text-[22vh] sm:text-[14rem] md:text-[18rem] lg:text-[22rem] xl:text-[26rem] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-all">
+            <span className="text-[25vw] xs:text-[23vw] portrait:text-[14vh] landscape:text-[28vh] sm:text-[16rem] md:text-[20rem] lg:text-[26rem] xl:text-[32rem] md:landscape:text-[28vh] lg:landscape:text-[34vh] xl:landscape:text-[38vh] font-black leading-none text-white tracking-tighter font-mono filter drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)] select-none tabular-nums active:scale-95 transition-all">
               {scoreB}
             </span>
 

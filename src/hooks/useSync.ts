@@ -13,6 +13,7 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
   // This completely stops high-frequency click "rollbacks" and echo flickers over real-time database channels.
   const lastLocalChangeTime = useRef<number>(0);
   const lastStateRef = useRef<any>(null);
+  const lastSavedStateRef = useRef<any>(null);
 
   useEffect(() => {
     onSyncRef.current = onSync;
@@ -49,7 +50,7 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
       const data = await dbFetchScoreboard(groupId);
       if (data) {
         isRemoteUpdate.current = true;
-        onSyncRef.current({
+        const initialState = {
           scoreA: data.score_a,
           scoreB: data.score_b,
           setsA: data.sets_a,
@@ -63,7 +64,9 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
           teamBOnCourt: data.team_b_on_court || Array(6).fill(null),
           waitingTeams: data.waiting_teams || [],
           history: data.history || []
-        });
+        };
+        lastSavedStateRef.current = initialState;
+        onSyncRef.current(initialState);
         setTimeout(() => { isRemoteUpdate.current = false; }, 200);
       }
     };
@@ -114,8 +117,7 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
 
           if (isIdentical) return;
 
-          isRemoteUpdate.current = true;
-          onSyncRef.current({
+          const remoteState = {
             scoreA: data.score_a,
             scoreB: data.score_b,
             setsA: data.sets_a,
@@ -129,7 +131,11 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
             teamBOnCourt: data.team_b_on_court || Array(6).fill(null),
             waitingTeams: data.waiting_teams || [],
             history: data.history || []
-          });
+          };
+
+          lastSavedStateRef.current = remoteState;
+          isRemoteUpdate.current = true;
+          onSyncRef.current(remoteState);
           setTimeout(() => { isRemoteUpdate.current = false; }, 200);
         }
       )
@@ -144,10 +150,33 @@ export function useSync(groupId: string | null, state: any, onSync: (newState: a
   useEffect(() => {
     if (!groupId || !isSupabaseConfigured || isRemoteUpdate.current) return;
 
+    // Skip database writes if the only change is the normal ticking of seconds.
+    // This dramatically reduces write load, eliminates race conditions and prevents rollbacks.
+    if (lastSavedStateRef.current && state) {
+      const hasCriticalChanged = 
+        lastSavedStateRef.current.scoreA !== state.scoreA ||
+        lastSavedStateRef.current.scoreB !== state.scoreB ||
+        lastSavedStateRef.current.setsA !== state.setsA ||
+        lastSavedStateRef.current.setsB !== state.setsB ||
+        lastSavedStateRef.current.isSwapped !== state.isSwapped ||
+        lastSavedStateRef.current.isActive !== state.isActive ||
+        JSON.stringify(lastSavedStateRef.current.teamAPlayers) !== JSON.stringify(state.teamAPlayers) ||
+        JSON.stringify(lastSavedStateRef.current.teamBPlayers) !== JSON.stringify(state.teamBPlayers) ||
+        JSON.stringify(lastSavedStateRef.current.teamAOnCourt) !== JSON.stringify(state.teamAOnCourt) ||
+        JSON.stringify(lastSavedStateRef.current.teamBOnCourt) !== JSON.stringify(state.teamBOnCourt) ||
+        JSON.stringify(lastSavedStateRef.current.waitingTeams) !== JSON.stringify(state.waitingTeams);
+
+      if (!hasCriticalChanged) {
+        return;
+      }
+    }
+
     const saveToDb = () => {
       lastUpdate.current = new Date().toISOString();
-      SyncManager.addToQueue({ type: 'scoreboard', groupId, data: stateRef.current });
-      dbSaveScoreboard(groupId, stateRef.current);
+      const stateToSave = { ...stateRef.current };
+      lastSavedStateRef.current = stateToSave;
+      SyncManager.addToQueue({ type: 'scoreboard', groupId, data: stateToSave });
+      dbSaveScoreboard(groupId, stateToSave);
     };
 
     const now = new Date().getTime();
